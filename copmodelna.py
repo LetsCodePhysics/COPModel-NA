@@ -1,5 +1,5 @@
 # Install dependencies.
-out = !pip list
+out = %pip list
 no_networkx = True
 for word in out:
     no_networkx = no_networkx and 'networkx' not in word
