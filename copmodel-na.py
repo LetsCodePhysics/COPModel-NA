@@ -1,0 +1,1039 @@
+# Install dependencies.
+!pip install networkx
+!pip install xlrd
+!pip install openpyxl
+
+# Import libraries.
+import warnings
+warnings.filterwarnings('ignore')
+import datetime
+import networkx as nx
+import pandas as pd
+pd.options.mode.chained_assignment = None  # default='warn'
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+# from wordcloud import WordCloud
+
+# Define a function that creates the desired network.
+def MakeGraph(drawings_in,full_database,AddKeyNumber=False):
+  # INPUTS:
+  # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
+  # full_database = the full set of data read in from Google Sheets
+  # AddKeyNumber = Do you want to include a number in the element names?
+
+  # OUTPUTS:
+  # function returns the graph (network) G based on the included drawings
+  # function also creates network diagram color-coded by category
+    
+  randomsample = False
+
+  # Set up empty dataframe.
+  df = pd.DataFrame()
+
+  # Set up columns of elements and categories.
+  df['Element'] = full_database['Element']
+  df['Category'] = full_database['Category']
+
+  # Set up frequency column. We'll calculate it in the next cell.
+  df['Frequency'] = np.zeros(len(df['Element']), dtype=int)
+
+  # Set up element number column. This is to serve as a label.
+  df['Element Number'] = np.zeros(len(df['Element']), dtype=int)
+  df['Element Key'] = np.empty(len(df['Element']), dtype=str)
+
+  # Set up the coincidence table for elements.
+  # In this table, c_ij = number of drawings elements i and j occur in together.
+  # Also count number of Demographic items to help offset loops later.
+  n_Demographics = 0
+  n_Elements = 0
+
+  # Create coincidence table of zeros.
+  for j in range(len(full_database['Element'])):
+    category = full_database['Category'][j]
+    element  = full_database['Element'][j]
+    if category != 'Demographic':
+      df[element] = np.zeros(len(full_database['Element']))
+      n_Elements += 1
+      df.loc[j,'Element Number'] = n_Elements
+      if AddKeyNumber:
+        df.loc[j,'Element Key'] = str(n_Elements) + element
+      else:
+        df.loc[j,'Element Key'] = element
+    else:
+      n_Demographics += 1
+      df.loc[j,'Element Key'] = ''
+  
+  drawings_to_use = []
+  if (randomsample):
+    # Choose N drawings randomly.
+    N = len(drawings_in) # Change when you're ready to random sample.
+    drawings_to_use = np.random.choice(drawings_in,N)
+  else:
+    drawings_to_use = drawings_in
+  # Create coincidence table from the dataset.
+  # Count the frequency and coincidences of elements.
+  for i in range(n_Demographics,len(df['Element'])):
+    frequency = 0
+    for sn in drawings_to_use:
+      frequency += full_database[sn][i]=='y'
+    # print(df['Frequency'][i], frequency,len(df['Frequency']),i)
+    df.loc[i,'Frequency'] = frequency
+    for j in range(i+1,len(df['Element'])):
+      count = 0
+      for sn in drawings_to_use:
+        count += full_database[sn][i]=='y' and full_database[sn][j]=='y'
+      df.loc[j,df['Element'][i]] = count
+  
+  # Create the graph.
+  G = nx.Graph()
+  G.clear()
+  
+  # Identify maximum frequency, for scaling the diagram.
+  max_frequency = max(df['Frequency'][1:len(df['Frequency'])])
+  # Pull off the non-zero frequency values to determine the minimum frequency,
+  # for scaling the diagram.
+  NonZeroFrequencies = []
+  for a in df['Frequency'][1:len(df['Frequency'])]:
+    if a > 0: NonZeroFrequencies.append(a)
+  min_frequency = min(NonZeroFrequencies)
+  # Create node size scale and edge size scale.
+  node_scale = max_frequency/min_frequency
+  edge_scale = 0
+  
+  # Create the edges. This automatically creates the nodes.
+  for i in range(n_Demographics,len(df['Element'])):
+    ei = df['Element'][i]
+    for j in range(i+1,len(df['Element'])):
+      ej = df['Element'][j]
+      if not math.isnan(df[ei][j]) and df[ei][j] > 0 and df['Category'][j] != 'Demographic':
+        G.add_edge(ei,ej,weight=df[ei][j],color='b')
+        edge_scale = max(edge_scale,df[ei][j])
+  # Color-code nodes based on category.
+  for j in range(n_Demographics,len(df['Element'])):
+    category = df['Category'][j]
+    element  = df['Element'][j]
+    # Ignore Demographic rows.
+    ThisIsAnElement = ((category == 'Practice') or (category == 'Goal') or (category == 'Member'))
+    if ThisIsAnElement:
+      # Ignore elements with 0 frequency. For example, if you are using a disaggregated subgroup
+      # and none of them included a given element.
+      ThisIsAnElement = df['Frequency'][j] > 0
+    if ThisIsAnElement and element in G.nodes():
+      if category == 'Practice':
+        G.nodes.data()[element]['color']='r'
+      elif category == 'Goal':
+        G.nodes.data()[element]['color']='b'
+      elif category == 'Member':
+        G.nodes.data()[element]['color']='g'
+      # Set default node border.
+      G.nodes.data()[element]['edgecolor']=G.nodes.data()[element]['color']
+      G.nodes.data()[element]['linewidth']=1.0
+      G.nodes.data()[element]['weight']=df['Frequency'][j]
+      G.nodes.data()[element]['category']=category
+  G.edge_scale = edge_scale
+  G.node_scale = node_scale
+  G.n_Demographics = n_Demographics
+  # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
+  # Comment out this line to keep the same arrangement but change cosmetics.
+  pos = nx.spring_layout(G)
+  edges = G.edges()
+  nodes = G.nodes()
+  # Set properties of nodes and edges.
+  weights = [G[u][v]['weight']/G.edge_scale for u,v in edges] # Size of edges.
+  ncolors = [G.nodes.data()[u]['color'] for u in nodes] # Color of nodes.
+  ecolors = [G.nodes.data()[u]['edgecolor'] for u in nodes] # Colors of node borders.
+  lwidths = [G.nodes.data()[u]['linewidth'] for u in nodes] # Width of node borders.
+  sizes = [G.nodes.data()[u]['weight']*G.node_scale*0.75 for u in nodes] # Size of nodes.
+  labeldict = {}
+  for j in range(n_Demographics,len(full_database['Element'])):
+    # Ignore elements with 0 frequency.
+    if df['Frequency'][j] > 0:
+      labeldict[df['Element'][j]] = str(df['Element Number'][j])
+  inv_factor = len(nodes) * 100
+  for u,v in edges: # Inverse weight of edges, for centrality distance.
+    G[u][v]['weight_inverse'] = int(inv_factor/G[u][v]['weight']) # Convert to int to appease betweenness.
+
+  G.labeldict = labeldict
+
+  return G
+
+def MakeBootstrapGraph(G):
+  # Make a bootstrap graph of G by reassigning edge values using a Poisson distribution.
+#   G_bootstrap = G
+#   for u,v in G.edges:
+#     G_bootstrap[u][v]['weight'] = np.random.poisson(lam=G[u][v]['weight'])
+  G_bootstrap = nx.Graph()
+  inv_factor = len(G.nodes()) * 100
+  for u,v in G.edges:
+    new_weight = np.random.poisson(lam=G[u][v]['weight'])
+    if new_weight > 0:
+      G_bootstrap.add_edge(u,v,weight=new_weight)
+      G_bootstrap[u][v]['weight_inverse']=int(inv_factor/new_weight) # Convert to int to appease betweenness.
+  for node in G:
+#     print(G.nodes.data()[node]['weight'])
+    if node not in G_bootstrap:
+      G_bootstrap.add_node(node)
+    G_bootstrap.nodes.data()[node]['weight'] = G.nodes.data()[node]['weight']
+    G_bootstrap.nodes.data()[node]['category'] = G.nodes.data()[node]['category']
+  return G_bootstrap
+
+def DrawGraph(G,AddLabel=False):
+  # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
+  # Comment out this line to keep the same arrangement but change cosmetics.
+  pos = nx.spring_layout(G)
+  edges = G.edges()
+  nodes = G.nodes()
+  # Set properties of nodes and edges.
+  weights = [G[u][v]['weight']/G.edge_scale for u,v in edges] # Size of edges.
+  ncolors = [G.nodes.data()[u]['color'] for u in nodes] # Color of nodes.
+  ecolors = [G.nodes.data()[u]['edgecolor'] for u in nodes] # Colors of node borders.
+  lwidths = [G.nodes.data()[u]['linewidth'] for u in nodes] # Width of node borders.
+  sizes = [G.nodes.data()[u]['weight']*G.node_scale*0.75 for u in nodes] # Size of nodes.
+
+  # The draw command.
+  nx.draw(G, pos, with_labels=AddLabel, labels=G.labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
+  # Add a legend for the color-coding.
+  plt.text(0.5, 0.95, 'Practice',color='r')
+  plt.text(0.5, 0.87, 'Member',color='g')
+  plt.text(0.5, 0.80, 'Goal',color='b')
+
+# Define a function that checks for the current disaggregation conditions.
+# full_database[sn][m] = drawing sn's info for Demographic item in row m
+# def DrawingInSubgroup(full_database,sn,demographic,value): # Original version for one demographic item.
+def DrawingInSubgroup(full_database,sn,demographics,values):
+  # sn = string for drawing number column header, created before calling the function
+  if len(demographics) == 0:
+    return True
+  else:
+    answer = True
+    for i_demographic in range(len(demographics)):
+      demographic = demographics[i_demographic]
+      value = values[i_demographic]
+      i_check = full_database[full_database['Element']==demographic].index[0]
+      answer = answer and full_database[sn][i_check]==value
+    return answer
+
+# Create a list of the drawings in a subgroup.
+# def MakeSubgroup(full_database,demographic='',value=''): # Originanl version for one demographic item.
+def MakeSubgroup(full_database,*argv):
+  # Create list of demographics and values to check.
+  demographics = []
+  values = []
+  for i in range(0,len(argv),2):
+    demographics.append(argv[i])
+    values.append(argv[i+1])
+  # Count the number of drawings in the database.
+  n_drawings = len(full_database.columns)-2
+  # print('n_drawings',n_drawings)
+  n_drawings_in = 0
+  drawings_in = []
+  for n in range(n_drawings):
+    sn = 'Drawing '+str(n+1)
+    # print(sn,demographic,value)
+    if DrawingInSubgroup(full_database,sn,demographics,values):
+      # print('here i am')
+      n_drawings_in += 1
+      drawings_in.append(sn)
+    # else:
+    #   print('here i aint')
+  # print('n_drawings_in',n_drawings_in,drawings_in)
+  return drawings_in
+
+def NodeDegreeCosine(G1,G2):
+  numerator = 0
+  denominator1 = 0
+  denominator2 = 0
+  for node in G1:
+    if G2.has_node(node):
+      numerator += G1.degree[node]*G2.degree[node]
+      denominator1 += G1.degree[node]**2
+      denominator2 += G2.degree[node]**2
+    else:
+      denominator1 += G1.degree[node]**2
+  for node in G2:
+    if not G1.has_node(node):
+      denominator2 += G2.degree[node]**2
+  ndc = numerator / (denominator1*denominator2)**0.5
+  return ndc
+
+def NodeWeightCosine(G1,G2):
+  numerator = 0
+  denominator1 = 0
+  denominator2 = 0
+  for node in G1:
+    if G2.has_node(node):
+      numerator += G1.nodes[node]['weight']*G2.nodes[node]['weight']
+      denominator1 += G1.nodes[node]['weight']**2
+      denominator2 += G2.nodes[node]['weight']**2
+    else:
+      denominator1 += G1.nodes[node]['weight']**2
+  for node in G2:
+    if not G1.has_node(node):
+      denominator2 += G2.nodes[node]['weight']**2
+  nwc = numerator / (denominator1*denominator2)**0.5
+  return nwc
+
+def NodeStrengthCosine(G1,G2):
+  numerator = 0
+  denominator1 = 0
+  denominator2 = 0
+  for node in G1:
+    if G2.has_node(node):
+      numerator += NodeStrength(G1,node)*NodeStrength(G2,node)
+      denominator1 += NodeStrength(G1,node)**2
+      denominator2 += NodeStrength(G2,node)**2
+    else:
+      denominator1 += NodeStrength(G1,node)**2
+  for node in G2:
+    if not G1.has_node(node):
+      denominator2 += NodeStrength(G2,node)**2
+  nsc = numerator / (denominator1*denominator2)**0.5
+  return nsc
+
+def CategoryNodeDegreeCosine(G1,G2,nodes):
+  numerator = 0
+  denominator1 = 0
+  denominator2 = 0
+  for node in nodes:
+    if G1.has_node(node) and G2.has_node(node):
+      numerator += G1.degree[node]*G2.degree[node]
+      denominator1 += G1.degree[node]**2
+      denominator2 += G2.degree[node]**2
+    elif G1.has_node(node):
+      denominator1 += G1.degree[node]**2
+    elif G2.has_node(node):
+      denominator2 += G2.degree[node]**2
+  ndc = numerator / (denominator1*denominator2)**0.5
+  return ndc
+
+def CategoryNodeWeightCosine(G1,G2,nodes):
+  numerator = 0
+  denominator1 = 0
+  denominator2 = 0
+  for node in nodes:
+    if G1.has_node(node) and G2.has_node(node):
+      numerator += G1.nodes[node]['weight']*G2.nodes[node]['weight']
+      denominator1 += G1.nodes[node]['weight']**2
+      denominator2 += G2.nodes[node]['weight']**2
+    elif G1.has_node(node):
+      denominator1 += G1.nodes[node]['weight']**2
+    elif G2.has_node(node):
+      denominator2 += G2.nodes[node]['weight']**2
+  nwc = numerator / (denominator1*denominator2)**0.5
+  return nwc
+
+def CategoryNodeStrengthCosine(G1,G2,nodes):
+  numerator = 0
+  denominator1 = 0
+  denominator2 = 0
+  for node in nodes:
+    if G1.has_node(node) and G2.has_node(node):
+      numerator += NodeStrength(G1,node)*NodeStrength(G2,node)
+      denominator1 += NodeStrength(G1,node)**2
+      denominator2 += NodeStrength(G2,node)**2
+    elif G1.has_node(node):
+      denominator1 += NodeStrength(G1,node)**2
+    elif G2.has_node(node):
+      denominator2 += NodeStrength(G2,node)**2
+  nsc = numerator / (denominator1*denominator2)**0.5
+  return nsc
+
+def EEJ(G1,G2):
+  numerator = 0
+  denominator = 0
+  for u,v in G1.edges:
+    if G2.has_edge(u,v):
+      numerator += 1
+    else:
+      denominator += 1
+  for u,v in G2.edges:
+    denominator += 1
+
+  return numerator / denominator
+
+# Functions to get backbone network.
+
+# Fractional Edge Weight: How weighty is this edge compared to all other edges coming out of node_center?
+def FractionalEdgeWeight(G,node_center,node_neighbor):
+  denominator = 0
+  for node in G.nodes():
+    if (node_center,node) in G.edges:
+      denominator += G.edges[node_center,node]['weight']
+  return G.edges[node_center,node_neighbor]['weight'] / denominator
+
+# Fhat: How many edges is this edge weightier than coming out of node_center?
+def Fhat(G,node_center,node_neighbor):
+  numerator = 0
+  for node in G.nodes():
+    if (node_center,node) in G.edges:
+      numerator += FractionalEdgeWeight(G,node_center,node) <= FractionalEdgeWeight(G,node_center,node_neighbor)
+  return numerator / G.degree[node_center]
+
+# Is this edge significant to either node1 or node2?
+def IsEdgeSignificant(G,node1,node2,alpha):
+  return 1-Fhat(G,node1,node2)<alpha or 1-Fhat(G,node2,node1)<alpha
+
+# Create the backbone network of G using significance alpha.
+# alpha = 0 is less inclusive.
+# alpha = 1 is more inclusive.
+# NB: This takes a LONG time to run.
+def Backbone(G,alpha):
+  G_backbone = G
+  for u,v in G_backbone.edges:
+    if not IsEdgeSignificant(G_backbone,u,v,alpha):
+      G_backbone.remove_edge(u, v)
+  return G_backbone
+
+# Strength of node.
+def NodeStrength(G,node):
+  strength = 0
+  for node2 in G:
+    if (node,node2) in G.edges:
+      strength += G.edges[node,node2]['weight']
+  return strength
+
+# Strength of all nodes.
+def AllStrength(G):
+  all_strength = 0
+  for node in G:
+    all_strength += NodeStrength(G,node)
+  return all_strength
+
+# Modularity = how well the network is separated into smaller clusters.
+def Modularity(G,clusters):
+  Q = 0
+  m = 0.5 * sum(NodeStrength(G,node) for node in G)
+  for cluster in clusters:
+    for node1 in cluster:
+      for node2 in cluster:
+        if (node1,node2) in G.edges:
+          Q += G.edges[node1,node2]['weight']
+        Q -= NodeStrength(G,node1)*NodeStrength(G,node2)/(2*m)
+  Q = Q / (2*m)
+  return Q
+
+# Purity tests.
+
+# Count the number of nodes that cluster1 and cluster2 have in common.
+# This is n_ij in https://www.sciencedirect.com/science/article/pii/S0378873321000307?casa_token=Y4KM5fBX43MAAAAA:ivqcUlFsXD2HZwQ5_QMvKApMMx85F0kiFqWw5PQCYANsXKqLh0_AzIx1BHbm3KS0m_Z5UpDNvc4
+def CommonCount(cluster1,cluster2):
+  count = 0
+  for node in cluster1:
+    count += node in cluster2
+  return count
+
+# Calculate the purity of cluster wrt a set of other_clusters.
+# cluster = a single cluster, formatted as a list of node names
+# other_clusters = a set of list of node names
+def Purity(cluster,other_clusters):
+  purity = max(CommonCount(cluster,other_cluster) for other_cluster in other_clusters) / len(cluster)
+  return purity
+
+# Identify the other_cluster in other_clusters that contains the maximum number of nodes in cluster.
+def ClusterOfMaxOverlap(cluster,other_clusters):
+  maximum_overlap = 0
+  cluster_of_max_overlap = []
+  for other_cluster in other_clusters:
+    count_overlap = 0
+    for node in cluster:
+      count_overlap = CommonCount(cluster,other_cluster)
+    if count_overlap > maximum_overlap:
+      cluster_of_max_overlap = other_cluster
+      maximum_overlap = count_overlap
+  return cluster_of_max_overlap
+
+# Calculate the purity of a set of clusters wrt a set of other_clusters.
+# Each argument is a forzenset of list of node names
+def PurityOfClustering(clusters,other_clusters):
+  purity1 = sum(Purity(cluster,other_clusters)*len(cluster) for cluster in clusters) / sum(len(cluster) for cluster in clusters)
+  purity2 = sum(Purity(other_cluster,clusters)*len(other_cluster) for other_cluster in other_clusters) / sum(len(other_cluster) for other_cluster in other_clusters)
+  return 2*purity1*purity2 / (purity1+purity2)
+
+# Calculate the F-Measure of cluster wrt a set of other_clusters.
+def FMeasureCluster(cluster,other_clusters):
+  # Find the cluster of maximum overlap from other_clusters.
+  cluster_of_max_overlap = ClusterOfMaxOverlap(cluster,other_clusters)
+  n = CommonCount(cluster,cluster_of_max_overlap)
+  m = len(cluster_of_max_overlap)
+  return 2*n / (len(cluster) + m)
+
+# https://www.sciencedirect.com/science/article/pii/S0378873321000307?casa_token=Y4KM5fBX43MAAAAA:ivqcUlFsXD2HZwQ5_QMvKApMMx85F0kiFqWw5PQCYANsXKqLh0_AzIx1BHbm3KS0m_Z5UpDNvc4#:~:text=2.3.2.-,F%2DMeasure,-The%20F%2DMeasure
+def FMeasure(clusters,other_clusters):
+  F1 = sum(FMeasureCluster(cluster,other_clusters) for cluster in clusters) / len(clusters)
+  F2 = sum(FMeasureCluster(other_cluster,clusters) for other_cluster in other_clusters) / len(other_clusters)
+  return 2*F1*F2 / (F1+F2)
+  return F
+
+# Run a series of N bootstrap clustering tests and average comparison measures.
+def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,file_out='bootstrap_output.txt'):
+  # drawings_in = list of drawings to include in subset
+  # full_database = full database of drawing elements
+  # N = number of bootstrap datasets to test
+
+  # Returns a dictionary where each element in the database is a key and each value is the number
+  # of times that element ended up in its original cluster.
+  # Also calculate the average and standard deviation of the NDC, EEJ, and purity between
+  # the network and the N bootstraps.
+
+  NDC_list    = []
+  NWC_list    = []
+  NSC_list    = []
+  EEJ_list    = []
+  purity_list = []
+  F_list      = []
+
+  # Create graph of original dataset.
+  G_original = MakeGraph(drawings_in,full_database)
+
+  if print_output:
+    print('original graph',G_original,AllStrength(G_original))
+  # Create clusters for original dataset.
+  original_clusters = nx.community.greedy_modularity_communities(G_original, weight='weight')
+
+  # Create dictionary to count fraction of times a node ends up in its original cluster.
+  original_frequency = {}
+  for node in G_original:
+    original_frequency[node] = 0
+    original_frequency[node+' probabilities'] = [] # Create list of probabilities for convergence test.
+
+  # Create N bootstraps and test for how many times each element ends up in their original cluster.
+  for n in range(N):
+    G_bootstrap = MakeBootstrapGraph(G_original)
+
+    bootstrap_clusters = nx.community.greedy_modularity_communities(G_bootstrap, weight='weight')
+    for node in G_original.nodes():
+      for ib in range(len(bootstrap_clusters)): # ib = number of this cluster in the bootstrap clusters
+        if ib < len(original_clusters):
+          original_frequency[node] += (node in original_clusters[ib] and node in bootstrap_clusters[ib])
+      original_frequency[node+' probabilities'].append(original_frequency[node]/(n+1))
+
+    NDC_list.append(NodeDegreeCosine(G_original,G_bootstrap))
+    NWC_list.append(NodeWeightCosine(G_original,G_bootstrap))
+    NSC_list.append(NodeStrengthCosine(G_original,G_bootstrap))
+    EEJ_list.append(EEJ(G_original,G_bootstrap))
+    purity_list.append(PurityOfClustering(original_clusters,bootstrap_clusters))
+    F_list.append(FMeasure(original_clusters,bootstrap_clusters))
+
+    if print_output:
+      print('bootstrap graph',n+1,'of',N,G_bootstrap,AllStrength(G_bootstrap))
+    
+    with open(file_out, 'w') as convert_file: 
+      current_time = datetime.datetime.now()
+      convert_file.write(str(current_time) + ' ' + str(n+1) + ' of ' + str(N))
+      convert_file.write('\n')
+      for key, value in original_frequency.items():
+        convert_file.write(key + ' : ' + str(value))
+        convert_file.write('\n')
+
+
+  for node in G_original.nodes():
+    original_frequency[node] = original_frequency[node] / N
+
+  NDC_mean    = np.mean(NDC_list)
+  NWC_mean    = np.mean(NWC_list)
+  NSC_mean    = np.mean(NSC_list)
+  EEJ_mean    = np.mean(EEJ_list)
+  purity_mean = np.mean(purity_list)
+  NDC_std     = np.std(NDC_list)
+  NWC_std     = np.std(NWC_list)
+  NSC_std     = np.std(NSC_list)
+  EEJ_std     = np.std(EEJ_list)
+  purity_std  = np.std(purity_list)
+
+  if print_output:
+    print('--Bootstrap Test Completed--')
+    print('     NDC ',NDC_mean,'±',NDC_std)
+    print('     NWC ',NWC_mean,'±',NWC_std)
+    print('     NSC ',NSC_mean,'±',NSC_std)
+    print('     EEJ ',EEJ_mean,'±',EEJ_std)
+    print('  purity ',purity_mean,'±',purity_std)
+
+    print('The following nodes remained in their original clusters more than',threshold*100,'% of the time:')
+    output = []
+    for node in G_original.nodes():
+      if original_frequency[node] > threshold:
+        output.append(node)
+    print(output)
+
+  original_frequency['NDC']         = NDC_list
+  original_frequency['NWC']         = NWC_list
+  original_frequency['NSC']         = NSC_list
+  original_frequency['EEJ']         = EEJ_list
+  original_frequency['purity']      = purity_list
+  original_frequency['NDC mean']    = NDC_mean
+  original_frequency['NWC mean']    = NWC_mean
+  original_frequency['NSC mean']    = NSC_mean
+  original_frequency['EEJ mean']    = EEJ_mean
+  original_frequency['purity mean'] = purity_mean
+  original_frequency['NDC std']     = NDC_std
+  original_frequency['NWC std']     = NWC_std
+  original_frequency['NSC std']     = NSC_std
+  original_frequency['EEJ std']     = EEJ_std
+  original_frequency['purity std']  = purity_std
+  original_frequency['nodes']       = G_original.nodes()
+
+  current_time = datetime.datetime.now()
+
+  with open(file_out, 'w') as convert_file: 
+    convert_file.write('FINISHED at ' + str(current_time))
+    convert_file.write('\n')
+#     for key, value in original_frequency.items():
+#       convert_file.write(key + ' : ' + str(value))
+#       convert_file.write('\n')
+    output = ''
+    for node in G_original.nodes():
+      if original_frequency[node] > threshold:
+        output+= node + str(', ')
+    convert_file.write('--Bootstrap Test Completed--')
+    convert_file.write('\n')
+    convert_file.write('     NDC '+str(NDC_mean)+' ± '+str(NDC_std))
+    convert_file.write('\n')
+    convert_file.write('     NWC '+str(NWC_mean)+' ± '+str(NWC_std))
+    convert_file.write('\n')
+    convert_file.write('     NSC '+str(NSC_mean)+' ± '+str(NSC_std))
+    convert_file.write('\n')
+    convert_file.write('     EEJ '+str(EEJ_mean)+' ± '+str(EEJ_std))
+    convert_file.write('\n')
+    convert_file.write('  purity '+str(purity_mean)+' ± '+str(purity_std))
+    convert_file.write('\n')
+    convert_file.write('The following nodes remained in their original clusters more than'+str(threshold*100)+'% of the time:')
+    convert_file.write('\n')
+    convert_file.write(output)
+    convert_file.write('\n' + 'And now some details...' + '\n')
+    for key, value in original_frequency.items():
+      convert_file.write(key + ' : ' + str(value))
+      convert_file.write('\n')
+       
+  return original_frequency
+
+def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2):
+  # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
+  # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
+  # drawing_subset_1, and between all_drawings and drawing_subset_2.
+  # Calculate Cohen's d for each of these averages.
+  # Print all these values.
+  # Return a dictionary with the 2 values each of average and standard deviation for NDC, EEJ, and purity,
+  # and the 3 values of Cohen's d.
+
+  NDC_1    = []
+  NDC_2    = []
+  NWC_1    = []
+  NWC_2    = []
+  NSC_1    = []
+  NSC_2    = []
+  EEJ_1    = []
+  EEJ_2    = []
+  purity_1 = []
+  purity_2 = []
+  F_1      = []
+  F_2      = []
+
+  print('making full network')
+  G_full = MakeGraph(all_drawings,full_database)
+  clusters_full = nx.community.greedy_modularity_communities(G_full, weight='weight')
+  print('making network 1')
+  G_1_original = MakeGraph(drawing_subset_1,full_database)
+  print('making network 2')
+  G_2_original = MakeGraph(drawing_subset_2,full_database)
+
+  # Create lists for within-category data.
+  categories = ['Goal','Member','Practice']
+  category_counts = {'measure':'counts'}
+  category_weights = {'measure':'weights'}
+  category_strengths = {'measure':'strengths'}
+  category_internal_connections = {'measure':'internal connections'}
+  category_NDCs = {'measure':'NDCs'}
+  category_NWCs = {'measure':'NWCs'}
+  category_NSCs = {'measure':'NSCs'}
+  category_betweennesses = {'measure':'betweennesses'}
+  category_closenesses = {'measure':'closenesses'}
+  
+  category_lists = {}
+  for category in categories:
+    category_lists[category + ' full'] = []
+    category_lists[category + ' 1'] = []
+    category_lists[category + ' 2'] = []
+    category_weights[category + ' full'] = 0
+    category_weights[category + ' 1'] = 0
+    category_weights[category + ' 2'] = 0
+    category_counts[category + ' full'] = 0
+    category_counts[category + ' 1'] = 0
+    category_counts[category + ' 2'] = 0
+    category_strengths[category + ' 1'] = []
+    category_internal_connections[category + ' 1'] = []
+    category_NDCs[category + ' 1'] = []
+    category_NWCs[category + ' 1'] = []
+    category_NSCs[category + ' 1'] = []
+    category_betweennesses[category + ' 1'] = []
+    category_closenesses[category + ' 1'] = []
+    category_strengths[category + ' 2'] = []
+    category_internal_connections[category + ' 2'] = []
+    category_NDCs[category + ' 2'] = []
+    category_NWCs[category + ' 2'] = []
+    category_NSCs[category + ' 2'] = []
+    category_betweennesses[category + ' 2'] = []
+    category_closenesses[category + ' 2'] = []
+    for node in G_full:
+      if G_full.nodes.data()[node]['category'] == category:
+        category_lists[category + ' full'].append(node)
+        category_weights[category + ' full'] += G_full.nodes.data()[node]['weight']
+        category_counts[category + ' full'] += 1
+    if category_counts[category + ' full'] > 0:
+      category_weights[category + ' full'] = category_weights[category + ' full'] / category_counts[category + ' full']
+    for node in G_1_original:
+      if G_1_original.nodes.data()[node]['category'] == category:
+        category_lists[category + ' 1'].append(node)
+        category_weights[category + ' 1'] += G_1_original.nodes.data()[node]['weight']
+        category_counts[category + ' 1'] += 1
+    if category_counts[category + ' 1'] > 0:
+      category_weights[category + ' 1'] = category_weights[category + ' 1'] / category_counts[category + ' 1']
+    for node in G_2_original:
+      if G_2_original.nodes.data()[node]['category'] == category:
+        category_lists[category + ' 2'].append(node)
+        category_weights[category + ' 2'] += G_2_original.nodes.data()[node]['weight']
+        category_counts[category + ' 2'] += 1
+    if category_counts[category + ' 2'] > 0:
+      category_weights[category + ' 2'] = category_weights[category + ' 2'] / category_counts[category + ' 2']
+    
+  print('setting up dictionaries')
+#   centralities_full = {} # Dictionary contains all the centrality measures for each node in the full network.
+#   for node in G_full:
+#     key = node + ' betweenness'
+#     centralities_full[key] = []
+#     key = node + ' closeness'
+#     centralities_full[key] = []
+#     key = node + ' eigencentrality'
+#     centralities_full[key] = []
+  big_nodes = sorted(G_full.nodes, key=lambda x: G_full.nodes[x]['weight'], reverse=True)[0:N_nodes]
+    
+  for node in big_nodes:
+    if (node not in G_1_original) or (node not in G_2_original):
+      big_nodes.remove(node)
+  
+  centralities_1 = {}
+  centralities_2 = {}
+  for node in big_nodes:
+    key = node + ' betweenness'
+    centralities_1[key] = []
+    centralities_2[key] = []
+    key = node + ' closeness'
+    centralities_1[key] = []
+    centralities_2[key] = []
+
+  print('going into bootstrap loop')
+  for n in range(N):
+    print('making bootstraps')
+    if time_print: delta_time = datetime.datetime.now()
+    G_1 = MakeBootstrapGraph(G_1_original)
+    G_2 = MakeBootstrapGraph(G_2_original)
+    if time_print: delta_time = datetime.datetime.now() - delta_time
+    if time_print: print('bootstrapping',delta_time.total_seconds())
+    NDC_1.append(NodeDegreeCosine(G_full,G_1))
+    NDC_2.append(NodeDegreeCosine(G_full,G_2))
+    NWC_1.append(NodeWeightCosine(G_full,G_1))
+    NWC_2.append(NodeWeightCosine(G_full,G_2))
+    NSC_1.append(NodeStrengthCosine(G_full,G_1))
+    NSC_2.append(NodeStrengthCosine(G_full,G_2))
+    EEJ_1.append(EEJ(G_full,G_1))
+    EEJ_2.append(EEJ(G_full,G_2))
+    print('clustering')
+    clusters_1 = nx.community.greedy_modularity_communities(G_1, weight='weight')
+    clusters_2 = nx.community.greedy_modularity_communities(G_2, weight='weight')
+    purity_1.append(PurityOfClustering(clusters_1,clusters_full))
+    purity_2.append(PurityOfClustering(clusters_2,clusters_full))
+    F_1.append(FMeasure(clusters_1,clusters_full))
+    F_2.append(FMeasure(clusters_2,clusters_full))
+    print('getting centrality measures')
+
+    if time_print: delta_time = datetime.datetime.now()
+    bc1 = nx.betweenness_centrality(G_1, weight = 'weight_inverse')
+    bc2 = nx.betweenness_centrality(G_2, weight = 'weight_inverse')
+    if time_print: delta_time = datetime.datetime.now() - delta_time
+    if time_print: print('betweenness measures',delta_time.total_seconds())
+
+    if time_print: delta_time = datetime.datetime.now()
+    cc1 = nx.closeness_centrality(G_1, distance = 'weight_inverse')
+    cc2 = nx.closeness_centrality(G_2, distance = 'weight_inverse')
+    if time_print: delta_time = datetime.datetime.now() - delta_time
+    if time_print: print('closeness',delta_time.total_seconds())
+        
+    for node in big_nodes:
+      key = node + ' betweenness'
+      centralities_1[key].append(bc1[node])
+      centralities_2[key].append(bc2[node])
+      key = node + ' closeness'
+      centralities_1[key].append(cc1[node])
+      centralities_2[key].append(cc2[node])
+#   category_strengths = {}
+#   category_internal_connections = {}
+#   category_NDCs = {}
+#   category_NWCs = {}
+#   category_NSCs = {}
+#   category_betweennesses = {}
+#   category_closenesses = {}
+
+    if time_print: delta_time = datetime.datetime.now()
+    for category in categories:
+      category_strengths[category + ' 1'].append(0)
+      category_internal_connections[category + ' 1'].append(0)
+      category_NDCs[category + ' 1'].append(0)
+      category_NWCs[category + ' 1'].append(0)
+      category_NSCs[category + ' 1'].append(0)
+      category_betweennesses[category + ' 1'].append(0)
+      category_closenesses[category + ' 1'].append(0)
+      category_strengths[category + ' 2'].append(0)
+      category_internal_connections[category + ' 2'].append(0)
+      category_NDCs[category + ' 2'].append(0)
+      category_NWCs[category + ' 2'].append(0)
+      category_NSCs[category + ' 2'].append(0)
+      category_betweennesses[category + ' 2'].append(0)
+      category_closenesses[category + ' 2'].append(0)
+
+      for node in category_lists[category + ' full']:
+        if node in G_1:
+          category_strengths[category + ' 1'][n] += NodeStrength(G_1,node)
+          for other_node in category_lists[category + ' full']:
+            if (node,other_node) in G_1.edges:
+              category_internal_connections[category + ' 1'][n] += G_1.edges[node,other_node]['weight']
+          category_betweennesses[category + ' 1'][n] += bc1[node]**centrality_power
+          category_closenesses[category + ' 1'][n] += cc1[node]**centrality_power
+      category_NDCs[category + ' 1'][n] = CategoryNodeDegreeCosine(G_1,G_full,category_lists[category + ' full'])
+      category_NWCs[category + ' 1'][n] = CategoryNodeWeightCosine(G_1,G_full,category_lists[category + ' full'])
+      category_NSCs[category + ' 1'][n] = CategoryNodeStrengthCosine(G_1,G_full,category_lists[category + ' full'])
+      if category_counts[category + ' 1'] > 0:
+        category_strengths[category + ' 1'][n] = category_strengths[category + ' 1'][n] / category_counts[category + ' 1']
+        category_internal_connections[category + ' 1'][n] = category_internal_connections[category + ' 1'][n] / ((category_counts[category + ' 1']-1)*(category_counts[category + ' 1']-2))
+        category_betweennesses[category + ' 1'][n] = (category_betweennesses[category + ' 1'][n] / category_counts[category + ' 1'])**(1.0/centrality_power)
+        category_closenesses[category + ' 1'][n] = (category_closenesses[category + ' 1'][n] / category_counts[category + ' 1'])**(1.0/centrality_power)
+      for node in category_lists[category + ' full']:
+        if node in G_2:
+          category_strengths[category + ' 2'][n] += NodeStrength(G_2,node)
+          for other_node in category_lists[category + ' full']:
+            if (node,other_node) in G_2.edges:
+              category_internal_connections[category + ' 2'][n] += G_2.edges[node,other_node]['weight']
+          category_betweennesses[category + ' 2'][n] += bc2[node]**centrality_power
+          category_closenesses[category + ' 2'][n] += cc2[node]**centrality_power
+      category_NDCs[category + ' 2'][n] = CategoryNodeDegreeCosine(G_2,G_full,category_lists[category + ' full'])
+      category_NWCs[category + ' 2'][n] = CategoryNodeWeightCosine(G_2,G_full,category_lists[category + ' full'])
+      category_NSCs[category + ' 2'][n] = CategoryNodeStrengthCosine(G_2,G_full,category_lists[category + ' full'])
+      if category_counts[category + ' 2'] > 0:
+        category_strengths[category + ' 2'][n] = category_strengths[category + ' 2'][n] / category_counts[category + ' 2']
+        category_internal_connections[category + ' 2'][n] = category_internal_connections[category + ' 2'][n] / ((category_counts[category + ' 2']-1)*(category_counts[category + ' 2']-2))
+        category_betweennesses[category + ' 2'][n] = (category_betweennesses[category + ' 2'][n] / category_counts[category + ' 2'])**(1.0/centrality_power)
+        category_closenesses[category + ' 2'][n] = (category_closenesses[category + ' 2'][n] / category_counts[category + ' 2'])**(1.0/centrality_power)
+    if time_print: delta_time = datetime.datetime.now() - delta_time
+    if time_print: print('category measures',delta_time.total_seconds())
+
+    print('Bootstrap',n+1,'of',N,'completed.')
+    with open(file_out, 'w') as convert_file: 
+      convert_file.write('Bootstrap '+str(n+1)+' of '+str(N)+' completed at ' + str(datetime.datetime.now()))
+
+  
+  NDC_1_mean = np.mean(NDC_1)
+  NDC_2_mean = np.mean(NDC_2)
+  NWC_1_mean = np.mean(NWC_1)
+  NWC_2_mean = np.mean(NWC_2)
+  NSC_1_mean = np.mean(NSC_1)
+  NSC_2_mean = np.mean(NSC_2)
+  EEJ_1_mean = np.mean(EEJ_1)
+  EEJ_2_mean = np.mean(EEJ_2)
+  purity_1_mean = np.mean(purity_1)
+  purity_2_mean = np.mean(purity_2)
+  F_1_mean = np.mean(F_1)
+  F_2_mean = np.mean(F_2)
+
+  NDC_1_std = np.std(NDC_1)
+  NDC_2_std = np.std(NDC_2)
+  NWC_1_std = np.std(NWC_1)
+  NWC_2_std = np.std(NWC_2)
+  NSC_1_std = np.std(NSC_1)
+  NSC_2_std = np.std(NSC_2)
+  EEJ_1_std = np.std(EEJ_1)
+  EEJ_2_std = np.std(EEJ_2)
+  purity_1_std = np.std(purity_1)
+  purity_2_std = np.std(purity_2)
+  F_1_std = np.std(F_1)
+  F_2_std = np.std(F_2)
+
+  nfull = len(all_drawings)
+  n1 = len(drawing_subset_1)
+  n2 = len(drawing_subset_2)
+    
+  for category in categories:
+    for network in [' 1',' 2']:
+      category_strengths[category + network + ' mean'] = np.mean(category_strengths[category + network])
+      category_strengths[category + network + ' std'] = np.std(category_strengths[category + network])
+      category_internal_connections[category + network + ' mean'] = np.mean(category_internal_connections[category + network])
+      category_internal_connections[category + network + ' std'] = np.std(category_internal_connections[category + network])
+      category_NDCs[category + network + ' mean'] = np.mean(category_NDCs[category + network])
+      category_NDCs[category + network + ' std'] = np.std(category_NDCs[category + network])
+      category_NWCs[category + network + ' mean'] = np.mean(category_NWCs[category + network])
+      category_NWCs[category + network + ' std'] = np.std(category_NWCs[category + network])
+      category_NSCs[category + network + ' mean'] = np.mean(category_NSCs[category + network])
+      category_NSCs[category + network + ' std'] = np.std(category_NSCs[category + network])
+      category_betweennesses[category + network + ' mean'] = np.mean(category_betweennesses[category + network])
+      category_betweennesses[category + network + ' std'] = np.std(category_betweennesses[category + network])
+      category_closenesses[category + network + ' mean'] = np.mean(category_closenesses[category + network])
+      category_closenesses[category + network + ' std'] = np.std(category_closenesses[category + network])
+    category_strengths[category + ' d'] = abs(category_strengths[category + ' 1 mean']-category_strengths[category + ' 2 mean']) / np.sqrt(((n1-1)*category_strengths[category + ' 1 std']**2+(n2-1)*category_strengths[category + ' 2 std']**2)/(n1+n2-2))
+    category_internal_connections[category + ' d'] = abs(category_internal_connections[category + ' 1 mean']-category_internal_connections[category + ' 2 mean']) / np.sqrt(((n1-1)*category_internal_connections[category + ' 1 std']**2+(n2-1)*category_internal_connections[category + ' 2 std']**2)/(n1+n2-2))
+    category_NDCs[category + ' d'] = abs(category_NDCs[category + ' 1 mean']-category_NDCs[category + ' 2 mean']) / np.sqrt(((n1-1)*category_NDCs[category + ' 1 std']**2+(n2-1)*category_NDCs[category + ' 2 std']**2)/(n1+n2-2))
+    category_NWCs[category + ' d'] = abs(category_NWCs[category + ' 1 mean']-category_NWCs[category + ' 2 mean']) / np.sqrt(((n1-1)*category_NWCs[category + ' 1 std']**2+(n2-1)*category_NWCs[category + ' 2 std']**2)/(n1+n2-2))
+    category_NSCs[category + ' d'] = abs(category_NSCs[category + ' 1 mean']-category_NSCs[category + ' 2 mean']) / np.sqrt(((n1-1)*category_NSCs[category + ' 1 std']**2+(n2-1)*category_NSCs[category + ' 2 std']**2)/(n1+n2-2))
+    category_betweennesses[category + ' d'] = abs(category_betweennesses[category + ' 1 mean']-category_betweennesses[category + ' 2 mean']) / np.sqrt(((n1-1)*category_betweennesses[category + ' 1 std']**2+(n2-1)*category_betweennesses[category + ' 2 std']**2)/(n1+n2-2))
+    category_closenesses[category + ' d'] = abs(category_closenesses[category + ' 1 mean']-category_closenesses[category + ' 2 mean']) / np.sqrt(((n1-1)*category_closenesses[category + ' 1 std']**2+(n2-1)*category_closenesses[category + ' 2 std']**2)/(n1+n2-2))
+    
+  for node in big_nodes:
+    key = node + ' betweenness'
+    centralities_1[key + ' mean'] = np.average(centralities_1[key])
+    centralities_1[key + ' std'] = np.std(centralities_1[key])
+    centralities_2[key + ' mean'] = np.average(centralities_2[key])
+    centralities_2[key + ' std'] = np.std(centralities_2[key])
+    key = node + ' closeness'
+    centralities_1[key + ' mean'] = np.average(centralities_1[key])
+    centralities_1[key + ' std'] = np.std(centralities_1[key])
+    centralities_2[key + ' mean'] = np.average(centralities_2[key])
+    centralities_2[key + ' std'] = np.std(centralities_2[key])
+#     key = node + ' eigencentrality'
+#     centralities_1[key + ' mean'] = np.average(centralities_1[key])
+#     centralities_1[key + ' std'] = np.std(centralities_1[key])
+#     centralities_2[key + ' mean'] = np.average(centralities_2[key])
+#     centralities_2[key + ' std'] = np.std(centralities_2[key])
+    
+  # denominator of Cohen's d is a pooled standard deivation: https://www.statisticshowto.com/pooled-standard-deviation/
+  d_NDC = abs(NDC_1_mean-NDC_2_mean) / np.sqrt(((n1-1)*NDC_1_std**2+(n2-1)*NDC_2_std**2)/(n1+n2-2))
+  d_NWC = abs(NWC_1_mean-NWC_2_mean) / np.sqrt(((n1-1)*NWC_1_std**2+(n2-1)*NWC_2_std**2)/(n1+n2-2))
+  d_NSC = abs(NSC_1_mean-NSC_2_mean) / np.sqrt(((n1-1)*NSC_1_std**2+(n2-1)*NSC_2_std**2)/(n1+n2-2))
+  d_EEJ = abs(EEJ_1_mean-EEJ_2_mean) / np.sqrt(((n1-1)*EEJ_1_std**2+(n2-1)*EEJ_2_std**2)/(n1+n2-2))
+  d_purity = abs(purity_1_mean-purity_2_mean) / np.sqrt(((n1-1)*purity_1_std**2+(n2-1)*purity_2_std**2)/(n1+n2-2))
+  d_F = abs(F_1_mean-F_2_mean) / np.sqrt(((n1-1)*F_1_std**2+(n2-1)*F_2_std**2)/(n1+n2-2))
+
+  output = {'NDC1 mean':NDC_1_mean,'NDC2 mean':NDC_2_mean,
+          'NWC1 mean':NWC_1_mean,'NWC2 mean':NWC_2_mean,
+          'NSC1 mean':NSC_1_mean,'NSC2 mean':NSC_2_mean,
+          'EEJ1 mean':EEJ_1_mean,'EEJ2 mean':EEJ_2_mean,
+          'purity1 mean':purity_1_mean,'purity2 mean':purity_2_mean,
+          'F1 mean':F_1_mean,'F2 mean':F_2_mean,
+          'NDC1 std':NDC_1_std,'NDC2 std':NDC_2_std,
+          'NWC1 std':NWC_1_std,'NWC2 std':NWC_2_std,
+          'NSC1 std':NSC_1_std,'NSC2 std':NSC_2_std,
+          'EEJ1 std':EEJ_1_std,'EEJ2 std':EEJ_2_std,
+          'purity1 std':purity_1_std,'purity2 std':purity_2_std,
+          'F1 std':F_1_std,'F2 std':F_2_std,
+          'd NDC':d_NDC,'d NWC':d_NWC,'d NSC':d_NSC,'d EEJ':d_EEJ,'d purity':d_purity, 'd FMeasure':d_F}
+    
+  for node in big_nodes:
+#     for measure in ['betweenness','closeness','eigencentrality']:
+    for measure in ['betweenness','closeness']:
+      key = node + ' ' + measure 
+      output[key + ' d'] = abs(centralities_1[key + ' mean']-centralities_2[key + ' mean']) / np.sqrt(((n1-1)*centralities_1[key + ' std']**2+(n2-1)*centralities_2[key + ' std']**2)/(n1+n2-2))
+      output[key + ' 1 mean'] = centralities_1[key + ' mean']
+      output[key + ' 2 mean'] = centralities_2[key + ' mean']
+      output[key + ' 1 std'] = centralities_1[key + ' std']
+      output[key + ' 2 std'] = centralities_2[key + ' std']
+        
+  print('--Bootstrap Comparison Completed--')
+  print('Highest-frequency nodes:')
+  for node in big_nodes:
+    print(node,'     Full count:',      G_full.nodes[node]['weight'],' (',      G_full.nodes[node]['weight']/nfull*100,'%) ')
+    print(node,' Subset 1 count:',G_1_original.nodes[node]['weight'],' (',G_1_original.nodes[node]['weight']/n1   *100,'%) ')
+    print(node,' Subset 2 count:',G_2_original.nodes[node]['weight'],' (',G_2_original.nodes[node]['weight']/n2   *100,'%) ')
+  print('First Subset')
+  print('     NDC ',NDC_1_mean,'±',NDC_1_std)
+  print('     NWC ',NWC_1_mean,'±',NWC_1_std)
+  print('     NSC ',NSC_1_mean,'±',NSC_1_std)
+  print('     EEJ ',EEJ_1_mean,'±',EEJ_1_std)
+  print('  purity ',purity_1_mean,'±',purity_1_std)
+  print('FMeasure ',F_1_mean,'±',F_1_std)
+  print('Second Subset')
+  print('     NDC ',NDC_2_mean,'±',NDC_2_std)
+  print('     NWC ',NWC_2_mean,'±',NWC_2_std)
+  print('     NSC ',NSC_2_mean,'±',NSC_2_std)
+  print('     EEJ ',EEJ_2_mean,'±',EEJ_2_std)
+  print('  purity ',purity_2_mean,'±',purity_2_std)
+  print('FMeasure ',F_2_mean,'±',F_2_std)
+  print('Cohen''s d effect sizes')
+  print('     NDC',d_NDC)
+  print('     NWC',d_NWC)
+  print('     NSC',d_NSC)
+  print('     EEJ',d_EEJ)
+  print('  purity',d_purity)
+  print('FMeasure',d_F)
+  for key, value in output.items():
+    print(key + ' : ' + str(value))
+
+  with open(file_out, 'w') as convert_file: 
+    convert_file.write('FINISHED at ' + str(datetime.datetime.now()))
+    convert_file.write('\n')
+    convert_file.write('--Bootstrap Comparison Completed--')
+    convert_file.write('\n')
+    convert_file.write('Highest-frequency nodes:\n')
+    for node in big_nodes:
+      convert_file.write(node+'     Full count:'+      str(G_full.nodes[node]['weight'])+' ('+      str(G_full.nodes[node]['weight']/nfull*100)+'%) \n')
+      convert_file.write(node+' Subset 1 count:'+str(G_1_original.nodes[node]['weight'])+' ('+str(G_1_original.nodes[node]['weight']/n1   *100)+'%) \n')
+      convert_file.write(node+' Subset 2 count:'+str(G_2_original.nodes[node]['weight'])+' ('+str(G_2_original.nodes[node]['weight']/n2   *100)+'%) \n')
+    convert_file.write('Subset 1 (N='+str(n1)+')')
+    convert_file.write('\n')
+    convert_file.write('     NDC '+str(NDC_1_mean)+' ± '+str(NDC_1_std))
+    convert_file.write('\n')
+    convert_file.write('     NWC '+str(NWC_1_mean)+' ± '+str(NWC_1_std))
+    convert_file.write('\n')
+    convert_file.write('     NSC '+str(NSC_1_mean)+' ± '+str(NSC_1_std))
+    convert_file.write('\n')
+    convert_file.write('     EEJ '+str(EEJ_1_mean)+' ± '+str(EEJ_1_std))
+    convert_file.write('\n')
+    convert_file.write('  purity '+str(purity_1_mean)+' ± '+str(purity_1_std))
+    convert_file.write('\n')
+    convert_file.write('FMeasure '+str(F_1_mean)+' ± '+str(F_1_std))
+    convert_file.write('\n')
+    convert_file.write('Subset 2 (N='+str(n2)+')')
+    convert_file.write('\n')
+    convert_file.write('     NDC '+str(NDC_2_mean)+' ± '+str(NDC_2_std))
+    convert_file.write('\n')
+    convert_file.write('     NWC '+str(NWC_2_mean)+' ± '+str(NWC_2_std))
+    convert_file.write('\n')
+    convert_file.write('     NSC '+str(NSC_2_mean)+' ± '+str(NSC_2_std))
+    convert_file.write('\n')
+    convert_file.write('     EEJ '+str(EEJ_2_mean)+' ± '+str(EEJ_2_std))
+    convert_file.write('\n')
+    convert_file.write('  purity '+str(purity_2_mean)+' ± '+str(purity_2_std))
+    convert_file.write('\n')
+    convert_file.write('FMeasure '+str(F_2_mean)+' ± '+str(F_2_std))
+    convert_file.write('\n')
+    convert_file.write('Cohen''s d effect sizes')
+    convert_file.write('\n')
+    convert_file.write('     NDC '+str(d_NDC))
+    convert_file.write('\n')
+    convert_file.write('     NWC '+str(d_NWC))
+    convert_file.write('\n')
+    convert_file.write('     NSC '+str(d_NSC))
+    convert_file.write('\n')
+    convert_file.write('     EEJ '+str(d_EEJ))
+    convert_file.write('\n')
+    convert_file.write('  purity '+str(d_purity))
+    convert_file.write('\n')
+    convert_file.write('FMeasure '+str(d_F))
+    convert_file.write('\n')
+
+    convert_file.write('=== Within-Category Measures ===' + '\n')
+    print('=== Within-Category Measures ===')
+    for category in categories:
+      convert_file.write(category + '\n')
+      print(category)
+      for network in [' 1',' 2']:
+        convert_file.write('Subset ' + network + '\n')
+        print('Subset',network)
+        convert_file.write('weights' + ' '+str(category_weights[category + network]) + '\n')
+        print('weights',category_weights[category + network])
+        for dictionary in [category_strengths,category_internal_connections,category_NDCs,
+                           category_NWCs,category_NSCs,category_betweennesses,category_closenesses]:
+          convert_file.write(dictionary['measure'] + ' '+str(dictionary[category + network + ' mean']) + ' ± ' + str(dictionary[category + network + ' std']) + ', d = ' + str(dictionary[category + ' d']) + '\n')
+          print(dictionary['measure'], ' ',dictionary[category + network + ' mean'], ' ± ' , dictionary[category + network + ' std'] , ', d = ' , dictionary[category + ' d'])
+    
+    for key, value in output.items():
+      convert_file.write(key + ' : ' + str(value))
+      convert_file.write('\n')
+    
+
+  return output
