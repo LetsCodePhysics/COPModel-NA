@@ -1,18 +1,3 @@
-# Install dependencies.
-out = %pip list
-no_networkx = True
-for word in out:
-    no_networkx = no_networkx and 'networkx' not in word
-if no_networkx: !pip install networkx
-no_xlrd = True
-for word in out:
-    no_xlrd = no_xlrd and 'xlrd' not in word
-if no_xlrd: !pip install xlrd
-no_openpyxl = True
-for word in out:
-    no_openpyxl = no_openpyxl and 'openpyxl' not in word
-if no_openpyxl: !pip install openpyxl
-
 # Import libraries.
 import warnings
 warnings.filterwarnings('ignore')
