@@ -10,13 +10,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 # from wordcloud import WordCloud
 
+# Read in the spreadsheet and count the number of drawings.
+# If you use a different Google Sheet, replace the identifier between /d/ and
+# /export with the sheet's identifier. Then re-run this cell.
+# Make sure sharing is turned on for anyone with the link to view.
+# The tab you want must be the first in the sheet. There's a setting to find a sheet
+# by name but it's been giving me an error...
+# full_database = pd.read_excel("https://docs.google.com/spreadsheets/d/105X8gfRuPtTH79czJQYMcMD1zPjopOWvGRgGOiSFjnc/export")#,sheet_name=sheet_name)
+# full_database = pd.read_excel("https://docs.google.com/spreadsheets/d/1TGk3QrpYbnSmVDT-c52PDL_ysp115mEm_mloAbwPRIs/export",engine='openpyxl')#,sheet_name=sheet_name)
+
+
 # Define a function that creates the desired network.
-def MakeGraph(drawings_in,full_database,AddKeyNumber=False):
+def MakeGraph(drawings_in,full_database):
   # INPUTS:
   # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
   # full_database = the full set of data read in from Google Sheets
-  # AddKeyNumber = Do you want to include a number in the element names?
-
   # OUTPUTS:
   # function returns the graph (network) G based on the included drawings
   # function also creates network diagram color-coded by category
@@ -151,6 +159,12 @@ def MakeGraph(drawings_in,full_database,AddKeyNumber=False):
 
   G.labeldict = labeldict
 
+  # The draw command.
+  # nx.draw(G, pos, with_labels=AddKeyNumber, labels=labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
+  # Add a legend for the color-coding.
+  # plt.text(0.5, 0.95, 'Practice',color='r')
+  # plt.text(0.5, 0.87, 'Member',color='g')
+  # plt.text(0.5, 0.80, 'Goal',color='b')
   return G
 
 def MakeBootstrapGraph(G):
@@ -159,6 +173,9 @@ def MakeBootstrapGraph(G):
 #   for u,v in G.edges:
 #     G_bootstrap[u][v]['weight'] = np.random.poisson(lam=G[u][v]['weight'])
   G_bootstrap = nx.Graph()
+  G_bootstrap.edge_scale = G.edge_scale
+  G_bootstrap.node_scale = G.node_scale
+  G_bootstrap.labeldict = G.labeldict
   inv_factor = len(G.nodes()) * 100
   for u,v in G.edges:
     new_weight = np.random.poisson(lam=G[u][v]['weight'])
@@ -171,27 +188,32 @@ def MakeBootstrapGraph(G):
       G_bootstrap.add_node(node)
     G_bootstrap.nodes.data()[node]['weight'] = G.nodes.data()[node]['weight']
     G_bootstrap.nodes.data()[node]['category'] = G.nodes.data()[node]['category']
+    G_bootstrap.nodes.data()[node]['color'] = G.nodes.data()[node]['color']
+    G_bootstrap.nodes.data()[node]['edgecolor'] = G.nodes.data()[node]['edgecolor']
+    G_bootstrap.nodes.data()[node]['linewidth'] = G.nodes.data()[node]['linewidth']
   return G_bootstrap
 
-def DrawGraph(G,AddLabel=False):
+def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0):
   # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
   # Comment out this line to keep the same arrangement but change cosmetics.
   pos = nx.spring_layout(G)
   edges = G.edges()
   nodes = G.nodes()
   # Set properties of nodes and edges.
-  weights = [G[u][v]['weight']/G.edge_scale for u,v in edges] # Size of edges.
+  weights = [G[u][v]['weight']/G.edge_scale*edge_size_control for u,v in edges] # Size of edges.
   ncolors = [G.nodes.data()[u]['color'] for u in nodes] # Color of nodes.
   ecolors = [G.nodes.data()[u]['edgecolor'] for u in nodes] # Colors of node borders.
   lwidths = [G.nodes.data()[u]['linewidth'] for u in nodes] # Width of node borders.
-  sizes = [G.nodes.data()[u]['weight']*G.node_scale*0.75 for u in nodes] # Size of nodes.
+  sizes = [G.nodes.data()[u]['weight']*G.node_scale*node_size_control for u in nodes] # Size of nodes.
 
   # The draw command.
-  nx.draw(G, pos, with_labels=AddLabel, labels=G.labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
+  nx.draw(G, pos, with_labels=AddKeyNumber, labels=G.labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
   # Add a legend for the color-coding.
   plt.text(0.5, 0.95, 'Practice',color='r')
   plt.text(0.5, 0.87, 'Member',color='g')
   plt.text(0.5, 0.80, 'Goal',color='b')
+
+  return
 
 # Define a function that checks for the current disaggregation conditions.
 # full_database[sn][m] = drawing sn's info for Demographic item in row m
@@ -249,7 +271,10 @@ def NodeDegreeCosine(G1,G2):
   for node in G2:
     if not G1.has_node(node):
       denominator2 += G2.degree[node]**2
-  ndc = numerator / (denominator1*denominator2)**0.5
+  if denominator1>0 and denominator2>0:
+    ndc = numerator / (denominator1*denominator2)**0.5
+  else:
+    ndc = 0
   return ndc
 
 def NodeWeightCosine(G1,G2):
@@ -266,7 +291,10 @@ def NodeWeightCosine(G1,G2):
   for node in G2:
     if not G1.has_node(node):
       denominator2 += G2.nodes[node]['weight']**2
-  nwc = numerator / (denominator1*denominator2)**0.5
+  if denominator1>0 and denominator2>0:
+    nwc = numerator / (denominator1*denominator2)**0.5
+  else:
+    nwc = 0
   return nwc
 
 def NodeStrengthCosine(G1,G2):
@@ -283,7 +311,10 @@ def NodeStrengthCosine(G1,G2):
   for node in G2:
     if not G1.has_node(node):
       denominator2 += NodeStrength(G2,node)**2
-  nsc = numerator / (denominator1*denominator2)**0.5
+  if denominator1>0 and denominator2>0:
+    nsc = numerator / (denominator1*denominator2)**0.5
+  else:
+    nsc = 0
   return nsc
 
 def CategoryNodeDegreeCosine(G1,G2,nodes):
@@ -299,7 +330,10 @@ def CategoryNodeDegreeCosine(G1,G2,nodes):
       denominator1 += G1.degree[node]**2
     elif G2.has_node(node):
       denominator2 += G2.degree[node]**2
-  ndc = numerator / (denominator1*denominator2)**0.5
+  if denominator1>0 and denominator2>0:
+    ndc = numerator / (denominator1*denominator2)**0.5
+  else:
+    ndc = 0
   return ndc
 
 def CategoryNodeWeightCosine(G1,G2,nodes):
@@ -315,7 +349,10 @@ def CategoryNodeWeightCosine(G1,G2,nodes):
       denominator1 += G1.nodes[node]['weight']**2
     elif G2.has_node(node):
       denominator2 += G2.nodes[node]['weight']**2
-  nwc = numerator / (denominator1*denominator2)**0.5
+  if denominator1>0 and denominator2>0:
+    nwc = numerator / (denominator1*denominator2)**0.5
+  else:
+    nwc = 0
   return nwc
 
 def CategoryNodeStrengthCosine(G1,G2,nodes):
@@ -331,7 +368,10 @@ def CategoryNodeStrengthCosine(G1,G2,nodes):
       denominator1 += NodeStrength(G1,node)**2
     elif G2.has_node(node):
       denominator2 += NodeStrength(G2,node)**2
-  nsc = numerator / (denominator1*denominator2)**0.5
+  if denominator1>0 and denominator2>0:
+    nsc = numerator / (denominator1*denominator2)**0.5
+  else:
+    nsc = 0
   return nsc
 
 def EEJ(G1,G2):
@@ -344,7 +384,7 @@ def EEJ(G1,G2):
       denominator += 1
   for u,v in G2.edges:
     denominator += 1
-
+    
   return numerator / denominator
 
 # Functions to get backbone network.
@@ -384,11 +424,11 @@ def Backbone(G,alpha):
 def NodeStrength(G,node):
   strength = 0
   for node2 in G:
-    if (node,node2) in G.edges:
+    if (node,node2) in G.edges and node != node2:
       strength += G.edges[node,node2]['weight']
   return strength
 
-# Strength of all nodes.
+# Strength of all nodes. This is like degree, except it adds edge weights together.
 def AllStrength(G):
   all_strength = 0
   for node in G:
@@ -398,7 +438,7 @@ def AllStrength(G):
 # Modularity = how well the network is separated into smaller clusters.
 def Modularity(G,clusters):
   Q = 0
-  m = 0.5 * sum(NodeStrength(G,node) for node in G)
+  m = 0.5 * AllStrength(G)
   for cluster in clusters:
     for node1 in cluster:
       for node2 in cluster:
@@ -420,7 +460,7 @@ def CommonCount(cluster1,cluster2):
 
 # Calculate the purity of cluster wrt a set of other_clusters.
 # cluster = a single cluster, formatted as a list of node names
-# other_clusters = a set of list of node names
+# other_clusters = a set of lists of node names
 def Purity(cluster,other_clusters):
   purity = max(CommonCount(cluster,other_cluster) for other_cluster in other_clusters) / len(cluster)
   return purity
@@ -460,6 +500,10 @@ def FMeasure(clusters,other_clusters):
   return 2*F1*F2 / (F1+F2)
   return F
 
+def DetectClusters(G,weight='weight'):
+  # We can change the cluster detection algorithm here.
+  return nx.community.greedy_modularity_communities(G,weight=weight)
+
 # Run a series of N bootstrap clustering tests and average comparison measures.
 def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,file_out='bootstrap_output.txt'):
   # drawings_in = list of drawings to include in subset
@@ -484,19 +528,19 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
   if print_output:
     print('original graph',G_original,AllStrength(G_original))
   # Create clusters for original dataset.
-  original_clusters = nx.community.greedy_modularity_communities(G_original, weight='weight')
+  original_clusters = DetectClusters(G_original, weight='weight')
 
   # Create dictionary to count fraction of times a node ends up in its original cluster.
   original_frequency = {}
   for node in G_original:
     original_frequency[node] = 0
-    original_frequency[node+' probabilities'] = [] # Create list of probabilities for convergence test.
+    original_frequency[node+' probabilities'] = [] # Create list of probabilities for convergence test, to be graphed versus iteration number.
 
   # Create N bootstraps and test for how many times each element ends up in their original cluster.
   for n in range(N):
     G_bootstrap = MakeBootstrapGraph(G_original)
 
-    bootstrap_clusters = nx.community.greedy_modularity_communities(G_bootstrap, weight='weight')
+    bootstrap_clusters = DetectClusters(G_bootstrap, weight='weight')
     for node in G_original.nodes():
       for ib in range(len(bootstrap_clusters)): # ib = number of this cluster in the bootstrap clusters
         if ib < len(original_clusters):
@@ -511,7 +555,7 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
     F_list.append(FMeasure(original_clusters,bootstrap_clusters))
 
     if print_output:
-      print('bootstrap graph',n+1,'of',N,G_bootstrap,AllStrength(G_bootstrap))
+      print('Finished bootstrap graph',n+1,'of',N)
     
     with open(file_out, 'w') as convert_file: 
       current_time = datetime.datetime.now()
@@ -602,6 +646,10 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
        
   return original_frequency
 
+def CohensD(mean1,std1,n1,mean2,std2,n2):
+  # denominator of Cohen's d is a pooled standard deivation: https://www.statisticshowto.com/pooled-standard-deviation/
+  return abs(mean1-mean2) / (np.sqrt(((n1-1)*std1**2+(n2-1)*std2**2)/(n1+n2-2)))
+
 def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2):
   # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
   # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
@@ -626,7 +674,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
   print('making full network')
   G_full = MakeGraph(all_drawings,full_database)
-  clusters_full = nx.community.greedy_modularity_communities(G_full, weight='weight')
+  clusters_full = DetectClusters(G_full, weight='weight')
   print('making network 1')
   G_1_original = MakeGraph(drawing_subset_1,full_database)
   print('making network 2')
@@ -692,14 +740,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_weights[category + ' 2'] = category_weights[category + ' 2'] / category_counts[category + ' 2']
     
   print('setting up dictionaries')
-#   centralities_full = {} # Dictionary contains all the centrality measures for each node in the full network.
-#   for node in G_full:
-#     key = node + ' betweenness'
-#     centralities_full[key] = []
-#     key = node + ' closeness'
-#     centralities_full[key] = []
-#     key = node + ' eigencentrality'
-#     centralities_full[key] = []
+
   big_nodes = sorted(G_full.nodes, key=lambda x: G_full.nodes[x]['weight'], reverse=True)[0:N_nodes]
     
   for node in big_nodes:
@@ -733,8 +774,8 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     EEJ_1.append(EEJ(G_full,G_1))
     EEJ_2.append(EEJ(G_full,G_2))
     print('clustering')
-    clusters_1 = nx.community.greedy_modularity_communities(G_1, weight='weight')
-    clusters_2 = nx.community.greedy_modularity_communities(G_2, weight='weight')
+    clusters_1 = DetectClusters(G_1, weight='weight')
+    clusters_2 = DetectClusters(G_2, weight='weight')
     purity_1.append(PurityOfClustering(clusters_1,clusters_full))
     purity_2.append(PurityOfClustering(clusters_2,clusters_full))
     F_1.append(FMeasure(clusters_1,clusters_full))
@@ -871,13 +912,13 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_betweennesses[category + network + ' std'] = np.std(category_betweennesses[category + network])
       category_closenesses[category + network + ' mean'] = np.mean(category_closenesses[category + network])
       category_closenesses[category + network + ' std'] = np.std(category_closenesses[category + network])
-    category_strengths[category + ' d'] = abs(category_strengths[category + ' 1 mean']-category_strengths[category + ' 2 mean']) / np.sqrt(((n1-1)*category_strengths[category + ' 1 std']**2+(n2-1)*category_strengths[category + ' 2 std']**2)/(n1+n2-2))
-    category_internal_connections[category + ' d'] = abs(category_internal_connections[category + ' 1 mean']-category_internal_connections[category + ' 2 mean']) / np.sqrt(((n1-1)*category_internal_connections[category + ' 1 std']**2+(n2-1)*category_internal_connections[category + ' 2 std']**2)/(n1+n2-2))
-    category_NDCs[category + ' d'] = abs(category_NDCs[category + ' 1 mean']-category_NDCs[category + ' 2 mean']) / np.sqrt(((n1-1)*category_NDCs[category + ' 1 std']**2+(n2-1)*category_NDCs[category + ' 2 std']**2)/(n1+n2-2))
-    category_NWCs[category + ' d'] = abs(category_NWCs[category + ' 1 mean']-category_NWCs[category + ' 2 mean']) / np.sqrt(((n1-1)*category_NWCs[category + ' 1 std']**2+(n2-1)*category_NWCs[category + ' 2 std']**2)/(n1+n2-2))
-    category_NSCs[category + ' d'] = abs(category_NSCs[category + ' 1 mean']-category_NSCs[category + ' 2 mean']) / np.sqrt(((n1-1)*category_NSCs[category + ' 1 std']**2+(n2-1)*category_NSCs[category + ' 2 std']**2)/(n1+n2-2))
-    category_betweennesses[category + ' d'] = abs(category_betweennesses[category + ' 1 mean']-category_betweennesses[category + ' 2 mean']) / np.sqrt(((n1-1)*category_betweennesses[category + ' 1 std']**2+(n2-1)*category_betweennesses[category + ' 2 std']**2)/(n1+n2-2))
-    category_closenesses[category + ' d'] = abs(category_closenesses[category + ' 1 mean']-category_closenesses[category + ' 2 mean']) / np.sqrt(((n1-1)*category_closenesses[category + ' 1 std']**2+(n2-1)*category_closenesses[category + ' 2 std']**2)/(n1+n2-2))
+    category_strengths[category + ' d'] = CohensD(category_strengths[category + ' 1 mean'],category_strengths[category + ' 1 std'],n1,category_strengths[category + ' 2 mean'],category_strengths[category + ' 2 std'],n2)
+    category_internal_connections[category + ' d'] = CohensD(category_internal_connections[category + ' 1 mean'],category_internal_connections[category + ' 1 std'],n1,category_internal_connections[category + ' 2 mean'],category_internal_connections[category + ' 2 std'],n2)
+    category_NDCs[category + ' d'] = CohensD(category_NDCs[category + ' 1 mean'],category_NDCs[category + ' 1 std'],n1,category_NDCs[category + ' 2 mean'],category_NDCs[category + ' 2 std'],n2)
+    category_NWCs[category + ' d'] = CohensD(category_NWCs[category + ' 1 mean'],category_NWCs[category + ' 1 std'],n1,category_NWCs[category + ' 2 mean'],category_NWCs[category + ' 2 std'],n2)
+    category_NSCs[category + ' d'] = CohensD(category_NSCs[category + ' 1 mean'],category_NSCs[category + ' 1 std'],n1,category_NSCs[category + ' 2 mean'],category_NSCs[category + ' 2 std'],n2)
+    category_betweennesses[category + ' d'] = CohensD(category_betweennesses[category + ' 1 mean'],category_betweennesses[category + ' 1 std'],n1,category_betweennesses[category + ' 2 mean'],category_betweennesses[category + ' 2 std'],n2)
+    category_closenesses[category + ' d'] = CohensD(category_closenesses[category + ' 1 mean'],category_closenesses[category + ' 1 std'],n1,category_closenesses[category + ' 2 mean'],category_closenesses[category + ' 2 std'],n2)
     
   for node in big_nodes:
     key = node + ' betweenness'
@@ -896,13 +937,12 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 #     centralities_2[key + ' mean'] = np.average(centralities_2[key])
 #     centralities_2[key + ' std'] = np.std(centralities_2[key])
     
-  # denominator of Cohen's d is a pooled standard deivation: https://www.statisticshowto.com/pooled-standard-deviation/
-  d_NDC = abs(NDC_1_mean-NDC_2_mean) / np.sqrt(((n1-1)*NDC_1_std**2+(n2-1)*NDC_2_std**2)/(n1+n2-2))
-  d_NWC = abs(NWC_1_mean-NWC_2_mean) / np.sqrt(((n1-1)*NWC_1_std**2+(n2-1)*NWC_2_std**2)/(n1+n2-2))
-  d_NSC = abs(NSC_1_mean-NSC_2_mean) / np.sqrt(((n1-1)*NSC_1_std**2+(n2-1)*NSC_2_std**2)/(n1+n2-2))
-  d_EEJ = abs(EEJ_1_mean-EEJ_2_mean) / np.sqrt(((n1-1)*EEJ_1_std**2+(n2-1)*EEJ_2_std**2)/(n1+n2-2))
-  d_purity = abs(purity_1_mean-purity_2_mean) / np.sqrt(((n1-1)*purity_1_std**2+(n2-1)*purity_2_std**2)/(n1+n2-2))
-  d_F = abs(F_1_mean-F_2_mean) / np.sqrt(((n1-1)*F_1_std**2+(n2-1)*F_2_std**2)/(n1+n2-2))
+  d_NDC = CohensD(NDC_1_mean,NDC_1_std,n1,NDC_2_mean,NDC_2_std,n2)
+  d_NWC = CohensD(NWC_1_mean,NWC_1_std,n1,NWC_2_mean,NWC_2_std,n2)
+  d_NSC = CohensD(NSC_1_mean,NSC_1_std,n1,NSC_2_mean,NSC_2_std,n2)
+  d_EEJ = CohensD(EEJ_1_mean,EEJ_1_std,n1,EEJ_2_mean,EEJ_2_std,n2)
+  d_purity = CohensD(purity_1_mean,purity_1_std,n1,purity_2_mean,purity_2_std,n2)
+  d_F = CohensD(F_1_mean,F_1_std,n1,F_2_mean,F_2_std,n2)
 
   output = {'NDC1 mean':NDC_1_mean,'NDC2 mean':NDC_2_mean,
           'NWC1 mean':NWC_1_mean,'NWC2 mean':NWC_2_mean,
@@ -922,7 +962,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 #     for measure in ['betweenness','closeness','eigencentrality']:
     for measure in ['betweenness','closeness']:
       key = node + ' ' + measure 
-      output[key + ' d'] = abs(centralities_1[key + ' mean']-centralities_2[key + ' mean']) / np.sqrt(((n1-1)*centralities_1[key + ' std']**2+(n2-1)*centralities_2[key + ' std']**2)/(n1+n2-2))
+      output[key + ' d'] = CohensD(centralities_1[key + ' mean'],centralities_1[key + ' mean'],n1,centralities_2[key + ' mean'],centralities_2[key + ' std'],n2)
       output[key + ' 1 mean'] = centralities_1[key + ' mean']
       output[key + ' 2 mean'] = centralities_2[key + ' mean']
       output[key + ' 1 std'] = centralities_1[key + ' std']
