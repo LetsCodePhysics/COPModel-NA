@@ -500,8 +500,21 @@ def FMeasure(clusters,other_clusters):
   return 2*F1*F2 / (F1+F2)
   return F
 
-def DetectClusters(G,weight='weight'):
-  # We can change the cluster detection algorithm here.
+def DetectClusters(G,weight='weight',method='fast-greedy'):
+  # Identify clusters in the network using the specified method.
+  if method == 'louvain_communities'
+    return nx.community.louvain_communities(G,weight=weight)
+  if method == 'label_propagation_communities'
+    return nx.community.label_propagation_communities(G)
+  if method == 'asyn_lpa_communities'
+    return nx.community.asyn_lpa_communities(G,weight=weight)
+  if method == 'naive_greedy_modularity_communities'
+    return nx.community.naive_greedy_modularity_communities(G,weight=weight)
+  if method == 'kernighan_lin_bisection'
+    return nx.community.kernighan_lin_bisection(G,weight=weight)
+  if method == 'fast-greedy' or method == 'greedy_modularity_communities':
+    return nx.community.greedy_modularity_communities(G,weight=weight)
+  # Set fast-greedy as default.
   return nx.community.greedy_modularity_communities(G,weight=weight)
 
 # Run a series of N bootstrap clustering tests and average comparison measures.
@@ -537,6 +550,7 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
     original_frequency[node+' probabilities'] = [] # Create list of probabilities for convergence test, to be graphed versus iteration number.
 
   # Create N bootstraps and test for how many times each element ends up in their original cluster.
+  time_start = datetime.datetime.now()
   for n in range(N):
     G_bootstrap = MakeBootstrapGraph(G_original)
 
@@ -554,13 +568,16 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
     purity_list.append(PurityOfClustering(original_clusters,bootstrap_clusters))
     F_list.append(FMeasure(original_clusters,bootstrap_clusters))
 
+    time_estimate = (datetime.datetime.now() - time_start) / n * (N-n)).total_seconds() / 3600
     if print_output:
       print('Finished bootstrap graph',n+1,'of',N)
+      print('### This run should finish in',time_estimate,'hours. ###')
     
     with open(file_out, 'w') as convert_file: 
       current_time = datetime.datetime.now()
       convert_file.write(str(current_time) + ' ' + str(n+1) + ' of ' + str(N))
       convert_file.write('\n')
+      convert_file.write('### This run should finish in '+str(time_estimate)+' hours. ###')
       for key, value in original_frequency.items():
         convert_file.write(key + ' : ' + str(value))
         convert_file.write('\n')
@@ -758,6 +775,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     centralities_2[key] = []
 
   print('going into bootstrap loop')
+  time_start = datetime.datetime.now()
   for n in range(N):
     print('making bootstraps')
     if time_print: delta_time = datetime.datetime.now()
@@ -862,8 +880,14 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     if time_print: print('category measures',delta_time.total_seconds())
 
     print('Bootstrap',n+1,'of',N,'completed.')
+    time_estimate = (datetime.datetime.now() - time_start) / n * (N-n)).total_seconds() / 3600
+    if print_output:
+      print('Finished bootstrap graph',n+1,'of',N)
+      print('### This run should finish in',time_estimate,'hours. ###')
+
     with open(file_out, 'w') as convert_file: 
       convert_file.write('Bootstrap '+str(n+1)+' of '+str(N)+' completed at ' + str(datetime.datetime.now()))
+      convert_file.write('### This run should finish in'+str(time_estimate)+'hours. ###')
 
   
   NDC_1_mean = np.mean(NDC_1)
