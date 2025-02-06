@@ -14,5 +14,5 @@ import copmodel-na
 
 ```
 
-Functions include...
+Documentation with examples is found in COP Models starter.ipynb.
 
