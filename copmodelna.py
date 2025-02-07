@@ -520,7 +520,7 @@ def DetectClusters(G,weight='weight',method='fast-greedy'):
   return nx.community.greedy_modularity_communities(G,weight=weight)
 
 # Run a series of N bootstrap clustering tests and average comparison measures.
-def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,file_out='bootstrap_output.txt'):
+def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,file_out='bootstrap_output.txt',clustering_method='fast-greedy'):
   # drawings_in = list of drawings to include in subset
   # full_database = full database of drawing elements
   # N = number of bootstrap datasets to test
@@ -543,7 +543,7 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
   if print_output:
     print('original graph',G_original,AllStrength(G_original))
   # Create clusters for original dataset.
-  original_clusters = DetectClusters(G_original, weight='weight')
+  original_clusters = DetectClusters(G_original, weight='weight', method=clustering_method)
 
   # Create dictionary to count fraction of times a node ends up in its original cluster.
   original_frequency = {}
@@ -556,7 +556,7 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
   for n in range(N):
     G_bootstrap = MakeBootstrapGraph(G_original)
 
-    bootstrap_clusters = DetectClusters(G_bootstrap, weight='weight')
+    bootstrap_clusters = DetectClusters(G_bootstrap, weight='weight', method=clustering_method)
     for node in G_original.nodes():
       for ib in range(len(bootstrap_clusters)): # ib = number of this cluster in the bootstrap clusters
         if ib < len(original_clusters):
@@ -669,7 +669,7 @@ def CohensD(mean1,std1,n1,mean2,std2,n2):
   # denominator of Cohen's d is a pooled standard deivation: https://www.statisticshowto.com/pooled-standard-deviation/
   return abs(mean1-mean2) / (np.sqrt(((n1-1)*std1**2+(n2-1)*std2**2)/(n1+n2-2)))
 
-def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2):
+def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy'):
   # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
   # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
   # drawing_subset_1, and between all_drawings and drawing_subset_2.
@@ -693,7 +693,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
   print('making full network')
   G_full = MakeGraph(all_drawings,full_database)
-  clusters_full = DetectClusters(G_full, weight='weight')
+  clusters_full = DetectClusters(G_full, weight='weight', method=clustering_method)
   print('making network 1')
   G_1_original = MakeGraph(drawing_subset_1,full_database)
   print('making network 2')
@@ -794,8 +794,8 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     EEJ_1.append(EEJ(G_full,G_1))
     EEJ_2.append(EEJ(G_full,G_2))
     print('clustering')
-    clusters_1 = DetectClusters(G_1, weight='weight')
-    clusters_2 = DetectClusters(G_2, weight='weight')
+    clusters_1 = DetectClusters(G_1, weight='weight', method=clustering_method)
+    clusters_2 = DetectClusters(G_2, weight='weight', method=clustering_method)
     purity_1.append(PurityOfClustering(clusters_1,clusters_full))
     purity_2.append(PurityOfClustering(clusters_2,clusters_full))
     F_1.append(FMeasure(clusters_1,clusters_full))
