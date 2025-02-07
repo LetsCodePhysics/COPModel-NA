@@ -194,7 +194,7 @@ def MakeBootstrapGraph(G):
     G_bootstrap.nodes.data()[node]['linewidth'] = G.nodes.data()[node]['linewidth']
   return G_bootstrap
 
-def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0):
+def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None):
   # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
   # Comment out this line to keep the same arrangement but change cosmetics.
   pos = nx.spring_layout(G)
@@ -208,6 +208,7 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0):
   sizes = [G.nodes.data()[u]['weight']*G.node_scale*node_size_control for u in nodes] # Size of nodes.
 
   # The draw command.
+  plt.figure(figsize=figsize)
   nx.draw(G, pos, with_labels=False, labels=G.labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
   # Add a legend for the color-coding.
   plt.text(0.5, 0.95, 'Practice',color='r')
