@@ -503,15 +503,15 @@ def FMeasure(clusters,other_clusters):
 
 def DetectClusters(G,weight='weight',method='fast-greedy'):
   # Identify clusters in the network using the specified method.
-  if method == 'louvain_communities'
+  if method == 'louvain_communities':
     return nx.community.louvain_communities(G,weight=weight)
-  if method == 'label_propagation_communities'
+  if method == 'label_propagation_communities':
     return nx.community.label_propagation_communities(G)
-  if method == 'asyn_lpa_communities'
+  if method == 'asyn_lpa_communities':
     return nx.community.asyn_lpa_communities(G,weight=weight)
-  if method == 'naive_greedy_modularity_communities'
+  if method == 'naive_greedy_modularity_communities':
     return nx.community.naive_greedy_modularity_communities(G,weight=weight)
-  if method == 'kernighan_lin_bisection'
+  if method == 'kernighan_lin_bisection':
     return nx.community.kernighan_lin_bisection(G,weight=weight)
   if method == 'fast-greedy' or method == 'greedy_modularity_communities':
     return nx.community.greedy_modularity_communities(G,weight=weight)
