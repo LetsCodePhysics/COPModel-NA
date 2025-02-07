@@ -569,7 +569,7 @@ def BootStrapTest(drawings_in,full_database,N,threshold=0.50,print_output=True,f
     purity_list.append(PurityOfClustering(original_clusters,bootstrap_clusters))
     F_list.append(FMeasure(original_clusters,bootstrap_clusters))
 
-    time_estimate = (datetime.datetime.now() - time_start).total_seconds() / n * (N-n)) / 3600
+    time_estimate = (datetime.datetime.now() - time_start).total_seconds() / n * (N-n) / 3600
     if print_output:
       print('Finished bootstrap graph',n+1,'of',N)
       print('### This run should finish in',time_estimate,'hours. ###')
@@ -881,7 +881,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     if time_print: print('category measures',delta_time.total_seconds())
 
     print('Bootstrap',n+1,'of',N,'completed.')
-    time_estimate = (datetime.datetime.now() - time_start).total_seconds() / n * (N-n)) / 3600
+    time_estimate = (datetime.datetime.now() - time_start).total_seconds() / n * (N-n) / 3600
     if print_output:
       print('Finished bootstrap graph',n+1,'of',N)
       print('### This run should finish in',time_estimate,'hours. ###')
