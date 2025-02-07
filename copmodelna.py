@@ -208,7 +208,7 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0):
   sizes = [G.nodes.data()[u]['weight']*G.node_scale*node_size_control for u in nodes] # Size of nodes.
 
   # The draw command.
-  nx.draw(G, pos, with_labels=AddKeyNumber, labels=G.labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
+  nx.draw(G, pos, with_labels=False, labels=G.labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
   # Add a legend for the color-coding.
   plt.text(0.5, 0.95, 'Practice',color='r')
   plt.text(0.5, 0.87, 'Member',color='g')
