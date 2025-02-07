@@ -50,6 +50,7 @@ def MakeGraph(drawings_in,full_database):
   # Also count number of Demographic items to help offset loops later.
   n_Demographics = 0
   n_Elements = 0
+  AddKeyNumber = False
 
   # Create coincidence table of zeros.
   for j in range(len(full_database['Element'])):
