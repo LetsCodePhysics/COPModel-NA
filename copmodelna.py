@@ -164,7 +164,7 @@ def MakeGraph(drawings_in,full_database):
   G.nodeweight = {}
   G.nodestrength = {}
   for node in G.nodes:
-    G.nodeweight[node] = G[node]['weight']
+    G.nodeweight[node] = G.nodes.data()[node]['weight']
     G.nodestrength[node] = NodeStrength(G,node)
 
   # The draw command.
