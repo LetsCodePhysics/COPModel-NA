@@ -159,6 +159,13 @@ def MakeGraph(drawings_in,full_database):
     G[u][v]['weight_inverse'] = int(inv_factor/G[u][v]['weight']) # Convert to int to appease betweenness.
 
   G.labeldict = labeldict
+  G.betweenness = nx.betweenness_centrality(G)
+  G.closeness = nx.closeness_centrality(G)
+  G.nodeweight = {}
+  G.nodestrength = {}
+  for node in G.nodes:
+    G.nodeweight[node] = G[node]['weight']
+    G.nodestrength[node] = NodeStrength(G,node)
 
   # The draw command.
   # nx.draw(G, pos, with_labels=AddKeyNumber, labels=labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
