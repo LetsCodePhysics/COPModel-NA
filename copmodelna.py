@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 
 
 # Define a function that creates the desired network.
-def MakeGraph(drawings_in,full_database):
+def MakeGraph(drawings_in,full_database,min_node_weight=0):
   # INPUTS:
   # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
   # full_database = the full set of data read in from Google Sheets
@@ -122,7 +122,7 @@ def MakeGraph(drawings_in,full_database):
     if ThisIsAnElement:
       # Ignore elements with 0 frequency. For example, if you are using a disaggregated subgroup
       # and none of them included a given element.
-      ThisIsAnElement = df['Frequency'][j] > 0
+      ThisIsAnElement = df['Frequency'][j] > min_node_weight
     if ThisIsAnElement and element in G.nodes():
       if category == 'Practice':
         G.nodes.data()[element]['color']='r'
