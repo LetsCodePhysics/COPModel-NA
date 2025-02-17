@@ -712,13 +712,13 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   to_remove = []
   for node in G_1_original.nodes:
     if node not in G_full.nodes:
-      to_remove.append[node]
+      to_remove.append(node)
   for node in to_remove:
     G_1_original.remove_node(node)
   to_remove = []
   for node in G_2_original.nodes:
     if node not in G_full.nodes:
-      to_remove.append[node]
+      to_remove.append(node)
   for node in to_remove:
     G_2_original.remove_node(node)
   
