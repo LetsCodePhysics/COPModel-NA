@@ -107,12 +107,14 @@ def MakeGraph(drawings_in,full_database,min_node_weight=0):
   
   # Create the edges. This automatically creates the nodes.
   for i in range(n_Demographics,len(df['Element'])):
-    ei = df['Element'][i]
-    for j in range(i+1,len(df['Element'])):
-      ej = df['Element'][j]
-      if not math.isnan(df[ei][j]) and df[ei][j] > 0 and df['Category'][j] != 'Demographic':
-        G.add_edge(ei,ej,weight=df[ei][j],color='b')
-        edge_scale = max(edge_scale,df[ei][j])
+    if df['Frequency'][i] > min_node_weight:
+      ei = df['Element'][i]
+      for j in range(i+1,len(df['Element'])):
+        if df['Frequency'][i] > min_node_weight:
+          ej = df['Element'][j]
+          if not math.isnan(df[ei][j]) and df[ei][j] > 0 and df['Category'][j] != 'Demographic':
+            G.add_edge(ei,ej,weight=df[ei][j],color='b')
+            edge_scale = max(edge_scale,df[ei][j])
   # Color-code nodes based on category.
   for j in range(n_Demographics,len(df['Element'])):
     category = df['Category'][j]
