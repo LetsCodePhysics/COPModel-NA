@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 
 
 # Define a function that creates the desired network.
-def MakeGraph(drawings_in,full_database,min_node_weight=0):
+def MakeGraph(drawings_in,full_database,min_node_weight=1):
   # INPUTS:
   # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
   # full_database = the full set of data read in from Google Sheets
@@ -99,7 +99,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=0):
   # for scaling the diagram.
   NonZeroFrequencies = []
   for a in df['Frequency'][1:len(df['Frequency'])]:
-    if a > 0: NonZeroFrequencies.append(a)
+    if a >= min_node_weight: NonZeroFrequencies.append(a)
   min_frequency = min(NonZeroFrequencies)
   # Create node size scale and edge size scale.
   node_scale = max_frequency/min_frequency
@@ -107,10 +107,10 @@ def MakeGraph(drawings_in,full_database,min_node_weight=0):
   
   # Create the edges. This automatically creates the nodes.
   for i in range(n_Demographics,len(df['Element'])):
-    if df['Frequency'][i] > min_node_weight:
+    if df['Frequency'][i] >= min_node_weight:
       ei = df['Element'][i]
       for j in range(i+1,len(df['Element'])):
-        if df['Frequency'][i] > min_node_weight:
+        if df['Frequency'][j] >= min_node_weight:
           ej = df['Element'][j]
           if not math.isnan(df[ei][j]) and df[ei][j] > 0 and df['Category'][j] != 'Demographic':
             G.add_edge(ei,ej,weight=df[ei][j],color='b')
@@ -122,9 +122,9 @@ def MakeGraph(drawings_in,full_database,min_node_weight=0):
     # Ignore Demographic rows.
     ThisIsAnElement = ((category == 'Practice') or (category == 'Goal') or (category == 'Member'))
     if ThisIsAnElement:
-      # Ignore elements with 0 frequency. For example, if you are using a disaggregated subgroup
+      # Ignore elements with insignificant frequency. For example, if you are using a disaggregated subgroup
       # and none of them included a given element.
-      ThisIsAnElement = df['Frequency'][j] > min_node_weight
+      ThisIsAnElement = df['Frequency'][j] >= min_node_weight
     if ThisIsAnElement and element in G.nodes():
       if category == 'Practice':
         G.nodes.data()[element]['color']='r'
@@ -154,7 +154,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=0):
   labeldict = {}
   for j in range(n_Demographics,len(full_database['Element'])):
     # Ignore elements with 0 frequency.
-    if df['Frequency'][j] > 0:
+    if df['Frequency'][j] >= min_node_weight:
       labeldict[df['Element'][j]] = str(df['Element Number'][j])
   inv_factor = len(nodes) * 100
   for u,v in edges: # Inverse weight of edges, for centrality distance.
@@ -678,7 +678,7 @@ def CohensD(mean1,std1,n1,mean2,std2,n2):
   # denominator of Cohen's d is a pooled standard deivation: https://www.statisticshowto.com/pooled-standard-deviation/
   return abs(mean1-mean2) / (np.sqrt(((n1-1)*std1**2+(n2-1)*std2**2)/(n1+n2-2)))
 
-def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy'):
+def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1):
   # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
   # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
   # drawing_subset_1, and between all_drawings and drawing_subset_2.
@@ -701,13 +701,21 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   F_2      = []
 
   print('making full network')
-  G_full = MakeGraph(all_drawings,full_database)
+  G_full = MakeGraph(all_drawings,full_database,min_node_weight=1)
   clusters_full = DetectClusters(G_full, weight='weight', method=clustering_method)
   print('making network 1')
   G_1_original = MakeGraph(drawing_subset_1,full_database)
   print('making network 2')
   G_2_original = MakeGraph(drawing_subset_2,full_database)
 
+  # Remove insignificant nodes from G_1_original and G_2_original.
+  for node in G_1_original.nodes:
+    if node not in G_full.nodes:
+      G_1_original.remove_node(node)
+  for node in G_2_original.nodes:
+    if node not in G_full.nodes:
+      G_2_original.remove_node(node)
+  
   # Create lists for within-category data.
   categories = ['Goal','Member','Practice']
   category_counts = {'measure':'counts'}
