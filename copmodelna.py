@@ -701,7 +701,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   F_2      = []
 
   print('making full network')
-  G_full = MakeGraph(all_drawings,full_database,min_node_weight=1)
+  G_full = MakeGraph(all_drawings,full_database,min_node_weight=min_node_weight)
   clusters_full = DetectClusters(G_full, weight='weight', method=clustering_method)
   print('making network 1')
   G_1_original = MakeGraph(drawing_subset_1,full_database)
