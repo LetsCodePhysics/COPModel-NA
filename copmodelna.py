@@ -709,12 +709,18 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   G_2_original = MakeGraph(drawing_subset_2,full_database)
 
   # Remove insignificant nodes from G_1_original and G_2_original.
+  to_remove = []
   for node in G_1_original.nodes:
     if node not in G_full.nodes:
-      G_1_original.remove_node(node)
+      to_remove.append[node]
+  for node in to_remove:
+    G_1_original.remove_node(node)
+  to_remove = []
   for node in G_2_original.nodes:
     if node not in G_full.nodes:
-      G_2_original.remove_node(node)
+      to_remove.append[node]
+  for node in to_remove:
+    G_2_original.remove_node(node)
   
   # Create lists for within-category data.
   categories = ['Goal','Member','Practice']
