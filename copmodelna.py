@@ -863,8 +863,6 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     bc2 = G_2.betweenness
     cc1 = G_1.closeness
     cc2 = G_2.closeness
-    
-    print(G_1.betweenness)
 
     for node in big_nodes:
       key = node + ' betweenness'
