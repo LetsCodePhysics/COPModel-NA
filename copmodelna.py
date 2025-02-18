@@ -169,7 +169,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
     G.normnodestrength[key] = value / ((len(G.nodes)-1)*len(drawings_in))
   G.nodedegree = dict(G.degree)
   G.normnodedegree = {}
-  for key,value in G.noddegree.items():
+  for key,value in G.nodedegree.items():
     G.normnodedegree[key] = value / (len(G.nodes)-1)
   G.nodeweight = {}
   for node in G.nodes:
