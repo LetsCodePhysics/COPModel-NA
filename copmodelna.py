@@ -161,8 +161,9 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
     G[u][v]['weight_inverse'] = int(inv_factor/G[u][v]['weight']) # Convert to int to appease betweenness.
 
   G.labeldict = labeldict
-  G.betweenness = nx.betweenness_centrality(G)
-  G.closeness = nx.closeness_centrality(G)
+  G.n_drawings = len(drawings_in)
+  G.betweenness = nx.betweenness_centrality(G, weight = 'weight_inverse')
+  G.closeness = nx.closeness_centrality(G, distance = 'weight_inverse')
   G.nodestrength = dict(G.degree(weight='weight')) 
   G.normnodestrength = {}
   for key,value in G.nodestrength.items():
@@ -194,7 +195,8 @@ def MakeBootstrapGraph(G):
   G_bootstrap.labeldict = G.labeldict
   inv_factor = len(G.nodes()) * 100
   for u,v in G.edges:
-    new_weight = np.random.poisson(lam=G[u][v]['weight'])
+    # Randomize edge weight, but cap at the node weight of the two nodes u,v.
+    new_weight = min(np.random.poisson(lam=G[u][v]['weight']),G.nodes.data()[u]['weight'],G.nodes.data()[v]['weight'])
     if new_weight > 0:
       G_bootstrap.add_edge(u,v,weight=new_weight)
       G_bootstrap[u][v]['weight_inverse']=int(inv_factor/new_weight) # Convert to int to appease betweenness.
@@ -207,6 +209,21 @@ def MakeBootstrapGraph(G):
     G_bootstrap.nodes.data()[node]['color'] = G.nodes.data()[node]['color']
     G_bootstrap.nodes.data()[node]['edgecolor'] = G.nodes.data()[node]['edgecolor']
     G_bootstrap.nodes.data()[node]['linewidth'] = G.nodes.data()[node]['linewidth']
+  G_bootstrap.n_drawings = G.n_drawings
+  G_bootstrap.betweenness = nx.betweenness_centrality(G_bootstrap, weight = 'weight_inverse')
+  G_bootstrap.closeness = nx.closeness_centrality(G_bootstrap, distance = 'weight_inverse')
+  G_bootstrap.nodestrength = dict(G_bootstrap.degree(weight='weight')) 
+  G_bootstrap.normnodestrength = {}
+  for key,value in G_bootstrap.nodestrength.items():
+    G_bootstrap.normnodestrength[key] = value / ((len(G_bootstrap.nodes)-1)*G_bootstrap.n_drawings)
+  G_bootstrap.nodedegree = dict(G_bootstrap.degree)
+  G_bootstrap.normnodedegree = {}
+  for key,value in G_bootstrap.nodedegree.items():
+    G_bootstrap.normnodedegree[key] = value / (len(G_bootstrap.nodes)-1)
+  G_bootstrap.nodeweight = {}
+  for node in G_bootstrap.nodes:
+    G_bootstrap.nodeweight[node] = G_bootstrap.nodes.data()[node]['weight']
+
   return G_bootstrap
 
 def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None):
@@ -798,12 +815,10 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   centralities_1 = {}
   centralities_2 = {}
   for node in big_nodes:
-    key = node + ' betweenness'
-    centralities_1[key] = []
-    centralities_2[key] = []
-    key = node + ' closeness'
-    centralities_1[key] = []
-    centralities_2[key] = []
+    for measure in [' betweenness',' closeness',' normnodedegree',' normnodestrength']:
+      key = node + measure
+      centralities_1[key] = []
+      centralities_2[key] = []
 
   print('going into bootstrap loop')
   time_start = datetime.datetime.now()
@@ -831,18 +846,26 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     F_2.append(FMeasure(clusters_2,clusters_full))
     # print('getting centrality measures')
 
-    if time_print: delta_time = datetime.datetime.now()
-    bc1 = nx.betweenness_centrality(G_1, weight = 'weight_inverse')
-    bc2 = nx.betweenness_centrality(G_2, weight = 'weight_inverse')
-    if time_print: delta_time = datetime.datetime.now() - delta_time
-    if time_print: print('betweenness measures',delta_time.total_seconds())
+#     if time_print: delta_time = datetime.datetime.now()
+#     bc1 = nx.betweenness_centrality(G_1, weight = 'weight_inverse')
+#     bc2 = nx.betweenness_centrality(G_2, weight = 'weight_inverse')
+#     if time_print: delta_time = datetime.datetime.now() - delta_time
+#     if time_print: print('betweenness measures',delta_time.total_seconds())
 
-    if time_print: delta_time = datetime.datetime.now()
-    cc1 = nx.closeness_centrality(G_1, distance = 'weight_inverse')
-    cc2 = nx.closeness_centrality(G_2, distance = 'weight_inverse')
-    if time_print: delta_time = datetime.datetime.now() - delta_time
-    if time_print: print('closeness',delta_time.total_seconds())
-        
+#     if time_print: delta_time = datetime.datetime.now()
+#     cc1 = nx.closeness_centrality(G_1, distance = 'weight_inverse')
+#     cc2 = nx.closeness_centrality(G_2, distance = 'weight_inverse')
+    
+#     if time_print: delta_time = datetime.datetime.now() - delta_time
+#     if time_print: print('closeness',delta_time.total_seconds())
+
+    bc1 = G_1.betweenness
+    bc2 = G_2.betweenness
+    cc1 = G_1.closeness
+    cc2 = G_2.closeness
+    
+    print(G_1.betweenness)
+
     for node in big_nodes:
       key = node + ' betweenness'
       centralities_1[key].append(bc1[node])
@@ -850,6 +873,12 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       key = node + ' closeness'
       centralities_1[key].append(cc1[node])
       centralities_2[key].append(cc2[node])
+      key = node + ' normnodedegree'
+      centralities_1[key].append(G_1.normnodedegree[node])
+      centralities_2[key].append(G_2.normnodedegree[node])
+      key = node + ' normnodestrength'
+      centralities_1[key].append(G_1.normnodestrength[node])
+      centralities_2[key].append(G_2.normnodestrength[node])
 #   category_strengths = {}
 #   category_internal_connections = {}
 #   category_NDCs = {}
@@ -974,21 +1003,12 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     category_closenesses[category + ' d'] = CohensD(category_closenesses[category + ' 1 mean'],category_closenesses[category + ' 1 std'],n1,category_closenesses[category + ' 2 mean'],category_closenesses[category + ' 2 std'],n2)
     
   for node in big_nodes:
-    key = node + ' betweenness'
-    centralities_1[key + ' mean'] = np.average(centralities_1[key])
-    centralities_1[key + ' std'] = np.std(centralities_1[key])
-    centralities_2[key + ' mean'] = np.average(centralities_2[key])
-    centralities_2[key + ' std'] = np.std(centralities_2[key])
-    key = node + ' closeness'
-    centralities_1[key + ' mean'] = np.average(centralities_1[key])
-    centralities_1[key + ' std'] = np.std(centralities_1[key])
-    centralities_2[key + ' mean'] = np.average(centralities_2[key])
-    centralities_2[key + ' std'] = np.std(centralities_2[key])
-#     key = node + ' eigencentrality'
-#     centralities_1[key + ' mean'] = np.average(centralities_1[key])
-#     centralities_1[key + ' std'] = np.std(centralities_1[key])
-#     centralities_2[key + ' mean'] = np.average(centralities_2[key])
-#     centralities_2[key + ' std'] = np.std(centralities_2[key])
+    for measure in [' betweenness',' closeness',' normnodedegree',' normnodestrength']:
+      key = node + measure
+      centralities_1[key + ' mean'] = np.average(centralities_1[key])
+      centralities_1[key + ' std'] = np.std(centralities_1[key])
+      centralities_2[key + ' mean'] = np.average(centralities_2[key])
+      centralities_2[key + ' std'] = np.std(centralities_2[key])
     
   d_NDC = CohensD(NDC_1_mean,NDC_1_std,n1,NDC_2_mean,NDC_2_std,n2)
   d_NWC = CohensD(NWC_1_mean,NWC_1_std,n1,NWC_2_mean,NWC_2_std,n2)
@@ -1013,8 +1033,8 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     
   for node in big_nodes:
 #     for measure in ['betweenness','closeness','eigencentrality']:
-    for measure in ['betweenness','closeness']:
-      key = node + ' ' + measure 
+    for measure in [' betweenness',' closeness',' normnodedegree',' normnodestrength']:
+      key = node + measure 
       output[key + ' d'] = CohensD(centralities_1[key + ' mean'],centralities_1[key + ' std'],n1,centralities_2[key + ' mean'],centralities_2[key + ' std'],n2)
       output[key + ' 1 mean'] = centralities_1[key + ' mean']
       output[key + ' 2 mean'] = centralities_2[key + ' mean']
