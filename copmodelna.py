@@ -1094,7 +1094,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   with open(file_out, 'w') as convert_file: 
     convert_file.write('FINISHED at ' + str(datetime.datetime.now()))
     convert_file.write('\n')
-    convert_file.write('--Bootstrap Comparison Completed--')
+    convert_file.write('--Bootstrap Comparison Completed--\n\n')
 
     # Write LaTeX-formatted table of centrality measures.
     convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency ($\%$)} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\')
@@ -1196,9 +1196,9 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
 def WriteBootStrapComparisonTableLine(row_header,*strings):
   print('in WriteBootStrapComparisonTableLine for ',row_header)
-  table_line = row_header + ' & '
+  table_line = row_header
   for i in range(len(strings)):
     print(strings[i])
-    table_line += strings[i] + ' & '
+    table_line += ' & ' + strings[i]
   table_line += '\\\\\n'
   return table_line
