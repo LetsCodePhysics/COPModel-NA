@@ -718,14 +718,13 @@ def get_var_name(var):
         if value is var:
             return name
 
-def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,subset_name_1=None,subset_name_2=None,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1):
+def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,subset_name_1=None,subset_name_2=None,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1,num_sig=3):
   # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
   # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
   # drawing_subset_1, and between all_drawings and drawing_subset_2.
   # Calculate Cohen's d for each of these averages.
   # Print all these values.
-  # Return a dictionary with the 2 values each of average and standard deviation for NDC, EEJ, and purity,
-  # and the 3 values of Cohen's d.
+  # Return a dictionary with lots of things.
 
   if subset_name_1==None:
     subset_name_1 = get_var_name(drawing_subset_1)
@@ -1097,13 +1096,18 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('--Bootstrap Comparison Completed--\n\n')
 
     # Write LaTeX-formatted table of centrality measures.
-    convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency ($\%$)} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\')
-    convert_file.write('Element & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d \\\\ ' )
+    convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency ($\%$)} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\\n')
+    convert_file.write('Element & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d \\\\\n' )
+    convert_file.write('\\hline\n')
     for node in big_nodes:
-      convert_file.write(WriteBootStrapComparisonTableLine(node,str(np.round(G_1_original.nodes[node]['weight']/n1*100,1)),str(np.round(G_2_original.nodes[node]['weight']/n2*100,1)),
-                                                           '$'+str(np.round(output[node + ' betweenness 1 mean'],4))+     ' \\pm '+str(np.round(output[node + ' betweenness 1 std'],4))     +'$','$'+str(np.round(output[node + ' betweenness 2 mean'],4))+     ' \\pm '+str(np.round(output[node + ' betweenness 2 std'],4))     +'$','$'+str(np.round(output[node + ' betweenness d'],2))     +CohensStar(output[node + ' betweenness d'     ])+'$',
-                                                           '$'+str(np.round(output[node + ' normnodedegree 1 mean'],4))+  ' \\pm '+str(np.round(output[node + ' normnodedegree 1 std'],4))  +'$','$'+str(np.round(output[node + ' normnodedegree 2 mean'],4))+  ' \\pm '+str(np.round(output[node + ' normnodedegree 2 std'],4))  +'$','$'+str(np.round(output[node + ' normnodedegree d'],2))  +CohensStar(output[node + ' normnodedegree d'  ])+'$',
-                                                           '$'+str(np.round(output[node + ' normnodestrength 1 mean'],4))+' \\pm '+str(np.round(output[node + ' normnodestrength 1 std'],4))+'$','$'+str(np.round(output[node + ' normnodestrength 2 mean'],4))+' \\pm '+str(np.round(output[node + ' normnodestrength 2 std'],4))+'$','$'+str(np.round(output[node + ' normnodestrength d'],2))+CohensStar(output[node + ' normnodestrength d'])+'$'))
+      # convert_file.write(WriteBootStrapComparisonTableLine(node,str(np.round(G_1_original.nodes[node]['weight']/n1*100,1)),str(np.round(G_2_original.nodes[node]['weight']/n2*100,1)),
+      #                                                      '$'+str(np.round(output[node + ' betweenness 1 mean'],4))+     ' \\pm '+str(np.round(output[node + ' betweenness 1 std'],4))     +'$','$'+str(np.round(output[node + ' betweenness 2 mean'],4))+     ' \\pm '+str(np.round(output[node + ' betweenness 2 std'],4))     +'$','$'+str(np.round(output[node + ' betweenness d'],2))     +CohensStar(output[node + ' betweenness d'     ])+'$',
+      #                                                      '$'+str(np.round(output[node + ' normnodedegree 1 mean'],4))+  ' \\pm '+str(np.round(output[node + ' normnodedegree 1 std'],4))  +'$','$'+str(np.round(output[node + ' normnodedegree 2 mean'],4))+  ' \\pm '+str(np.round(output[node + ' normnodedegree 2 std'],4))  +'$','$'+str(np.round(output[node + ' normnodedegree d'],2))  +CohensStar(output[node + ' normnodedegree d'  ])+'$',
+      #                                                      '$'+str(np.round(output[node + ' normnodestrength 1 mean'],4))+' \\pm '+str(np.round(output[node + ' normnodestrength 1 std'],4))+'$','$'+str(np.round(output[node + ' normnodestrength 2 mean'],4))+' \\pm '+str(np.round(output[node + ' normnodestrength 2 std'],4))+'$','$'+str(np.round(output[node + ' normnodestrength d'],2))+CohensStar(output[node + ' normnodestrength d'])+'$'))
+      convert_file.write(WriteBootStrapComparisonTableLine(node,NumberOut(G_1_original.nodes[node]['weight']/n1*100,1),NumberOut(G_2_original.nodes[node]['weight']/n2*100,1),
+                                                           '$'+NumberOut(output[node + ' betweenness 1 mean'],num_sig)+     ' \\pm '+NumberOut(output[node + ' betweenness 1 std'],num_sig)     +'$','$'+NumberOut(output[node + ' betweenness 2 mean'],num_sig)+     ' \\pm '+NumberOut(output[node + ' betweenness 2 std'],num_sig)     +'$','$'+NumberOut(output[node + ' betweenness d'],num_sig-1)     +CohensStar(output[node + ' betweenness d'     ])+'$',
+                                                           '$'+NumberOut(output[node + ' normnodedegree 1 mean'],num_sig)+  ' \\pm '+NumberOut(output[node + ' normnodedegree 1 std'],num_sig)  +'$','$'+NumberOut(output[node + ' normnodedegree 2 mean'],num_sig)+  ' \\pm '+NumberOut(output[node + ' normnodedegree 2 std'],num_sig)  +'$','$'+NumberOut(output[node + ' normnodedegree d'],num_sig-1)  +CohensStar(output[node + ' normnodedegree d'  ])+'$',
+                                                           '$'+NumberOut(output[node + ' normnodestrength 1 mean'],num_sig)+' \\pm '+NumberOut(output[node + ' normnodestrength 1 std'],num_sig)+'$','$'+NumberOut(output[node + ' normnodestrength 2 mean'],num_sig)+' \\pm '+NumberOut(output[node + ' normnodestrength 2 std'],num_sig)+'$','$'+NumberOut(output[node + ' normnodestrength d'],num_sig-1)+CohensStar(output[node + ' normnodestrength d'])+'$'))
 
     convert_file.write('\n')
     convert_file.write('Highest-frequency nodes:\n')
@@ -1193,6 +1197,10 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     
 
   return output
+
+def NumberOut(x,n_sig):
+  # Return a string representation of float x with n_sig decimal places, including zeros.
+  return '{:.'+n_sig+'f}'.format(np.round(x,n_sig)
 
 def WriteBootStrapComparisonTableLine(row_header,*strings):
   print('in WriteBootStrapComparisonTableLine for ',row_header)
