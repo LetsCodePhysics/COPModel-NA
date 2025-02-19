@@ -702,6 +702,16 @@ def CohensD(mean1,std1,n1,mean2,std2,n2):
   # denominator of Cohen's d is a pooled standard deivation: https://www.statisticshowto.com/pooled-standard-deviation/
   return abs(mean1-mean2) / (np.sqrt(((n1-1)*std1**2+(n2-1)*std2**2)/(n1+n2-2)))
 
+def CohensStar(d):
+  # Return indicator of significance for Cohen's d value.
+  if 0.2 <= d < 0.5:
+    return '^{*}'
+  if 0.5 <= d < 0.8:
+    return '^{**}'
+  if 0.8 <= d:
+    return '^{***}'
+  return ''
+
 def get_var_name(var):
     # https://www.geeksforgeeks.org/get-variable-name-as-string-in-python/
     for name, value in locals().items():
@@ -1085,6 +1095,16 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('FINISHED at ' + str(datetime.datetime.now()))
     convert_file.write('\n')
     convert_file.write('--Bootstrap Comparison Completed--')
+
+    # Write LaTeX-formatted table of centrality measures.
+    convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\')
+    convert_file.write('Element & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d \\\\ ' )
+    for node in big_nodes:
+      convert_file.write(WriteBootStrapComparisonTableLine(node,G_1_original.nodes[node]['weight']/n1,G_2_original.nodes[node]['weight']/n2,
+                                                           '$'+str(np.round(ouput[node + ' bewteenness 1 mean'],4))+     ' \\pm 'str(np.round(ouput[node + ' bewteenness 1 std'],4))     +'$','$'+str(np.round(ouput[node + ' bewteenness 2 mean'],4))+     ' \\pm 'str(np.round(ouput[node + ' bewteenness 2 std'],4))     +'$','$'+str(np.round(output[node + ' betweenness d'],2))     +CohensStar(output[node + ' betweenness d'     ]+'$'),
+                                                           '$'+str(np.round(ouput[node + ' normdegree 1 mean'],4))+      ' \\pm 'str(np.round(ouput[node + ' normdegree 1 std'],4))      +'$','$'+str(np.round(ouput[node + ' normdegree 2 mean'],4))+      ' \\pm 'str(np.round(ouput[node + ' normdegree 2 std'],4))      +'$','$'+str(np.round(output[node + ' normdegree d'],2))      +CohensStar(output[node + ' normdegree d'      ]+'$'),
+                                                           '$'+str(np.round(ouput[node + ' normnodestrength 1 mean'],4))+' \\pm 'str(np.round(ouput[node + ' normnodestrength 1 std'],4))+'$','$'+str(np.round(ouput[node + ' normnodestrength 2 mean'],4))+' \\pm 'str(np.round(ouput[node + ' normnodestrength 2 std'],4))+'$','$'+str(np.round(output[node + ' normnodestrength d'],2))+CohensStar(output[node + ' normnodestrength d']+'$')))
+
     convert_file.write('\n')
     convert_file.write('Highest-frequency nodes:\n')
     for node in big_nodes:
@@ -1178,5 +1198,5 @@ def WriteBootStrapComparisonTableLine(row_header,*strings):
   table_line = row_header + ' & '
   for i in range(len(strings)):
     table_line += strings[i] + ' & '
-  table_line += '\\\\'
+  table_line += '\\\\\n'
   return table_line
