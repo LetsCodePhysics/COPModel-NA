@@ -1173,3 +1173,10 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     
 
   return output
+
+def WriteBootStrapComparisonTableLine(row_header,*strings):
+  table_line = row_header + ' & '
+  for i in range(len(strings)):
+    table_line += strings[i] + ' & '
+  table_line += '\\\\'
+  return table_line
