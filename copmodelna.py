@@ -162,6 +162,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
 
   G.labeldict = labeldict
   G.n_drawings = len(drawings_in)
+  G.elements_per_drawing = len(G.nodes) / len(drawings_in)
   G.betweenness = nx.betweenness_centrality(G, weight = 'weight_inverse')
   G.closeness = nx.closeness_centrality(G, distance = 'weight_inverse')
   G.nodestrength = dict(G.degree(weight='weight')) 
@@ -701,7 +702,13 @@ def CohensD(mean1,std1,n1,mean2,std2,n2):
   # denominator of Cohen's d is a pooled standard deivation: https://www.statisticshowto.com/pooled-standard-deviation/
   return abs(mean1-mean2) / (np.sqrt(((n1-1)*std1**2+(n2-1)*std2**2)/(n1+n2-2)))
 
-def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1):
+def get_var_name(var):
+    # https://www.geeksforgeeks.org/get-variable-name-as-string-in-python/
+    for name, value in locals().items():
+        if value is var:
+            return name
+
+def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,subset_name_1=None,subset_name_2=None,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1):
   # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
   # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
   # drawing_subset_1, and between all_drawings and drawing_subset_2.
@@ -710,6 +717,11 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   # Return a dictionary with the 2 values each of average and standard deviation for NDC, EEJ, and purity,
   # and the 3 values of Cohen's d.
 
+  if subset_name_1==None:
+    subset_name_1 = get_var_name(drawing_subset_1)
+  if subset_name_2==None:
+    subset_name_2 = get_var_name(drawing_subset_2)
+  
   NDC_1    = []
   NDC_2    = []
   NWC_1    = []
@@ -1043,8 +1055,8 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   print('Highest-frequency nodes:')
   for node in big_nodes:
     print(node,'     Full count:',      G_full.nodes[node]['weight'],' (',      G_full.nodes[node]['weight']/nfull*100,'%) ')
-    print(node,' Subset 1 count:',G_1_original.nodes[node]['weight'],' (',G_1_original.nodes[node]['weight']/n1   *100,'%) ')
-    print(node,' Subset 2 count:',G_2_original.nodes[node]['weight'],' (',G_2_original.nodes[node]['weight']/n2   *100,'%) ')
+    print(node,' ',subset_name_1,' count:',G_1_original.nodes[node]['weight'],' (',G_1_original.nodes[node]['weight']/n1   *100,'%) ')
+    print(node,' ',subset_name_2,' count:',G_2_original.nodes[node]['weight'],' (',G_2_original.nodes[node]['weight']/n2   *100,'%) ')
   print('First Subset')
   print('     NDC ',NDC_1_mean,'±',NDC_1_std)
   print('     NWC ',NWC_1_mean,'±',NWC_1_std)
@@ -1077,9 +1089,13 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('Highest-frequency nodes:\n')
     for node in big_nodes:
       convert_file.write(node+'     Full count:'+      str(G_full.nodes[node]['weight'])+' ('+      str(G_full.nodes[node]['weight']/nfull*100)+'%) \n')
-      convert_file.write(node+' Subset 1 count:'+str(G_1_original.nodes[node]['weight'])+' ('+str(G_1_original.nodes[node]['weight']/n1   *100)+'%) \n')
-      convert_file.write(node+' Subset 2 count:'+str(G_2_original.nodes[node]['weight'])+' ('+str(G_2_original.nodes[node]['weight']/n2   *100)+'%) \n')
-    convert_file.write('Subset 1 (N='+str(n1)+')')
+      convert_file.write(node+' '+subset_name_1+' count:'+str(G_1_original.nodes[node]['weight'])+' ('+str(G_1_original.nodes[node]['weight']/n1   *100)+'%) \n')
+      convert_file.write(node+' '+subset_name_2+' count:'+str(G_2_original.nodes[node]['weight'])+' ('+str(G_2_original.nodes[node]['weight']/n2   *100)+'%) \n')
+    convert_file.write('####################################')
+    convert_file.write('\n')
+    convert_file.write(subset_name_1+' (N='+str(n1)+')')
+    convert_file.write('\n')
+    convert_file.write(str(G_1_original.elements_per_drawing) + ' nodes per drawing')
     convert_file.write('\n')
     convert_file.write('     NDC '+str(NDC_1_mean)+' ± '+str(NDC_1_std))
     convert_file.write('\n')
@@ -1093,7 +1109,11 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('\n')
     convert_file.write('FMeasure '+str(F_1_mean)+' ± '+str(F_1_std))
     convert_file.write('\n')
-    convert_file.write('Subset 2 (N='+str(n2)+')')
+    convert_file.write('####################################')
+    convert_file.write('\n')
+    convert_file.write(subset_name_2+' (N='+str(n2)+')')
+    convert_file.write('\n')
+    convert_file.write(str(G_2_original.elements_per_drawing) + ' nodes per drawing')
     convert_file.write('\n')
     convert_file.write('     NDC '+str(NDC_2_mean)+' ± '+str(NDC_2_std))
     convert_file.write('\n')
@@ -1106,6 +1126,8 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('  purity '+str(purity_2_mean)+' ± '+str(purity_2_std))
     convert_file.write('\n')
     convert_file.write('FMeasure '+str(F_2_mean)+' ± '+str(F_2_std))
+    convert_file.write('\n')
+    convert_file.write('####################################')
     convert_file.write('\n')
     convert_file.write('Cohen''s d effect sizes')
     convert_file.write('\n')
@@ -1120,6 +1142,8 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('  purity '+str(d_purity))
     convert_file.write('\n')
     convert_file.write('FMeasure '+str(d_F))
+    convert_file.write('\n')
+    convert_file.write('####################################')
     convert_file.write('\n')
 
     convert_file.write('=== Within-Category Measures ===' + '\n')
@@ -1136,6 +1160,12 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
                            category_NWCs,category_NSCs,category_betweennesses,category_closenesses]:
           convert_file.write(dictionary['measure'] + ' '+str(dictionary[category + network + ' mean']) + ' ± ' + str(dictionary[category + network + ' std']) + ', d = ' + str(dictionary[category + ' d']) + '\n')
           print(dictionary['measure'], ' ',dictionary[category + network + ' mean'], ' ± ' , dictionary[category + network + ' std'] , ', d = ' , dictionary[category + ' d'])
+    convert_file.write('####################################')
+    convert_file.write('\n')
+    convert_file.write('            All Output')
+    convert_file.write('\n')
+    convert_file.write('####################################')
+    convert_file.write('\n')
     
     for key, value in output.items():
       convert_file.write(key + ' : ' + str(value))
