@@ -1093,6 +1093,18 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   with open(file_out, 'w') as convert_file: 
     convert_file.write('FINISHED at ' + str(datetime.datetime.now()))
     convert_file.write('\n')
+    convert_file.write('N = '+str(N))
+    convert_file.write('\n')
+    convert_file.write('Subsets '+subset_name_1+'; '+subset_name_2)
+    convert_file.write('\n')
+    convert_file.write('N_nodes = '+str(N_nodes))
+    convert_file.write('\n')
+    convert_file.write('centrality_power = '+str(centrality_power))
+    convert_file.write('\n')
+    convert_file.write('clustering_method = '+clustering_method)
+    convert_file.write('\n')
+    convert_file.write('min_node_weight = '+str(min_node_weight))
+    convert_file.write('\n')
     convert_file.write('--Bootstrap Comparison Completed--\n\n')
 
     # Write LaTeX-formatted table of centrality measures.
