@@ -1198,15 +1198,15 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
   return output
 
-def NumberOut(x,n_sig):
-  # Return a string representation of float x with n_sig decimal places, including zeros.
-  return '{:.'+str(n_sig)+'f}'.format(np.round(x,n_sig)
+# def NumberOut(x,n_sig):
+#   # Return a string representation of float x with n_sig decimal places, including zeros.
+#   return '{:.'+str(n_sig)+'f}'.format(np.round(x,n_sig)
 
-def WriteBootStrapComparisonTableLine(row_header,*strings):
-  print('in WriteBootStrapComparisonTableLine for ',row_header)
-  table_line = row_header
-  for i in range(len(strings)):
-    print(strings[i])
-    table_line += ' & ' + strings[i]
-  table_line += '\\\\\n'
-  return table_line
+# def WriteBootStrapComparisonTableLine(row_header,*strings):
+#   print('in WriteBootStrapComparisonTableLine for ',row_header)
+#   table_line = row_header
+#   for i in range(len(strings)):
+#     print(strings[i])
+#     table_line += ' & ' + strings[i]
+#   table_line += '\\\\\n'
+#   return table_line
