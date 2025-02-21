@@ -1202,7 +1202,7 @@ def NumberOut(x,num_sig=3):
   # Return a string representation of float x with n_sig decimal places, including zeros.
   # return '{:.'+str(n_sig)+'f}'.format(np.round(x,n_sig))
   out = '{x:.'+str(num_sig)+'f}'
-  print(out.format(x=x))
+  return out.format(x=x)
 
 def WriteBootStrapComparisonTableLine(row_header,*strings):
   print('in WriteBootStrapComparisonTableLine for ',row_header)
