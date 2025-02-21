@@ -1200,7 +1200,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
 def NumberOut(x,n_sig):
   # Return a string representation of float x with n_sig decimal places, including zeros.
-  return '{:.'+n_sig+'f}'.format(np.round(x,n_sig)
+  return '{:.'+str(n_sig)+'f}'.format(np.round(x,n_sig)
 
 def WriteBootStrapComparisonTableLine(row_header,*strings):
   print('in WriteBootStrapComparisonTableLine for ',row_header)
