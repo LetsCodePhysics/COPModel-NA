@@ -1109,7 +1109,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
     # Write LaTeX-formatted table of centrality measures.
     convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency ($\%$)} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\\n')
-    convert_file.write('Element & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d \\\\\n' )
+    convert_file.write('Element & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ \\\\\n' )
     convert_file.write('\\hline\n')
     for node in big_nodes:
       # convert_file.write(WriteBootStrapComparisonTableLine(node,str(np.round(G_1_original.nodes[node]['weight']/n1*100,1)),str(np.round(G_2_original.nodes[node]['weight']/n2*100,1)),
