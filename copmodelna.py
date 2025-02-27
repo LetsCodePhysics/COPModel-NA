@@ -8,6 +8,7 @@ pd.options.mode.chained_assignment = None  # default='warn'
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import f_oneway
 # from wordcloud import WordCloud
 
 # Read in the spreadsheet and count the number of drawings.
@@ -1055,6 +1056,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     for measure in [' betweenness',' closeness',' normnodedegree',' normnodestrength']:
       key = node + measure 
       output[key + ' d'] = CohensD(centralities_1[key + ' mean'],centralities_1[key + ' std'],n1,centralities_2[key + ' mean'],centralities_2[key + ' std'],n2)
+      output[key + ' p'] = f_oneway(centralities_1[key], centralities_2[key]).pvalue
       output[key + ' 1 mean'] = centralities_1[key + ' mean']
       output[key + ' 2 mean'] = centralities_2[key + ' mean']
       output[key + ' 1 std'] = centralities_1[key + ' std']
@@ -1109,7 +1111,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
     # Write LaTeX-formatted table of centrality measures.
     convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency ($\%$)} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\\n')
-    convert_file.write('Element (Category) & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & d \\\\\n' )
+    convert_file.write('Element (Category) & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ \\\\\n' )
     convert_file.write('\\hline\n')
     for node in big_nodes:
       convert_file.write(WriteBootStrapComparisonTableLine(node+' ('+G_1_original.nodes.data()[node]['category']+') ', NumberOut(G_1_original.nodes[node]['weight']/n1*100,1),NumberOut(G_2_original.nodes[node]['weight']/n2*100,1),
