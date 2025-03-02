@@ -9,6 +9,8 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import f_oneway
+from scipy.cluster.hierarchy import dendrogram
+from itertools import chain, combinations
 # from wordcloud import WordCloud
 
 # Read in the spreadsheet and count the number of drawings.
@@ -535,6 +537,41 @@ def FMeasure(clusters,other_clusters):
   F2 = sum(FMeasureCluster(other_cluster,clusters) for other_cluster in other_clusters) / len(other_clusters)
   return 2*F1*F2 / (F1+F2)
   return F
+
+def most_central_edge(G):
+  centrality = nx.edge_betweenness_centrality(G, weight="weight")
+  return max(centrality, key=centrality.get)
+
+def DrawDendrogram(G,N_nodes=None,big_nodes=None):
+    communities = list(nx.community.girvan_newman(G,most_valuable_edge=most_central_edge)) # List of lists of sets. communities[n] = a list of sets partitioning G at level n 
+    if big_nodes == None:
+      if N_nodes == None:
+        N_nodes = len(G.nodes)
+      big_nodes = sorted(G.nodes, key=lambda x: G.nodes[x]['weight'], reverse=True)[0:N_nodes]
+    # Count the number of levels required for each node to be split off into its own cluster.
+    levels = []
+    for node in big_nodes:
+#         print('node')
+        iteration = 0
+        level = 0
+        while level == 0:
+            for cluster in communities[iteration]:
+                if node in cluster and len(cluster) == 1:
+                    level = iteration
+#                     print(node,level)
+            iteration += 1
+        levels.append(level)
+    ydist = []
+    for n1 in range(len(big_nodes)):
+        for n2 in range(n1+1,len(big_nodes)):
+            ydist.append(abs(levels[n2]-levels[n1]))
+#     print(len(ydist))
+
+    Z = hierarchy.linkage(ydist, 'single')
+    for row in Z: # Shift tree for visibility at end.
+      row[2] += 2
+    dng = hierarchy.dendrogram(Z,labels=big_nodes,orientation='left')
+    return levels,Z,big_nodes,dng
 
 def DetectClusters(G,weight='weight',method='fast-greedy'):
   # Identify clusters in the network using the specified method.
