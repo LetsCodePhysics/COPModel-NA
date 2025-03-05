@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import f_oneway
 from scipy.cluster.hierarchy import dendrogram
 from itertools import chain, combinations
+from scipy.cluster import hierarchy
 # from wordcloud import WordCloud
 
 # Read in the spreadsheet and count the number of drawings.
@@ -24,10 +25,13 @@ from itertools import chain, combinations
 
 
 # Define a function that creates the desired network.
-def MakeGraph(drawings_in,full_database,min_node_weight=1):
+def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_weight=1,nodes_in=[]):
   # INPUTS:
   # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
   # full_database = the full set of data read in from Google Sheets
+  # node_selection can equal
+     # 'min_weight' - The graph will include only nodes of weight >= min_node_weight
+     # 'nodes_list' - The graph will include only nodes in the list nodes_in
   # OUTPUTS:
   # function returns the graph (network) G based on the included drawings
   # function also creates network diagram color-coded by category
@@ -47,6 +51,10 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
   # Set up element number column. This is to serve as a label.
   df['Element Number'] = np.zeros(len(df['Element']), dtype=int)
   df['Element Key'] = np.empty(len(df['Element']), dtype=str)
+
+  # If node_selection is nodes_list, set min_node_weight higher than can be reached.
+  if node_selection == 'nodes_list':
+    min_node_weight = len(df['Element']) + 100
 
   # Set up the coincidence table for elements.
   # In this table, c_ij = number of drawings elements i and j occur in together.
@@ -101,8 +109,10 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
   # Pull off the non-zero frequency values to determine the minimum frequency,
   # for scaling the diagram.
   NonZeroFrequencies = []
-  for a in df['Frequency'][1:len(df['Frequency'])]:
-    if a >= min_node_weight: NonZeroFrequencies.append(a)
+#   for a in df['Frequency'][1:len(df['Frequency'])]:
+#     if a >= min_node_weight: NonZeroFrequencies.append(a)
+  for i in range(1,len(df['Frequency'])):
+    if df['Frequency'][i]>min_node_weight or df['Element'][i] in nodes_in: NonZeroFrequencies.append(df['Frequency'][i])
   min_frequency = min(NonZeroFrequencies)
   # Create node size scale and edge size scale.
   node_scale = max_frequency/min_frequency
@@ -110,10 +120,10 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
   
   # Create the edges. This automatically creates the nodes.
   for i in range(n_Demographics,len(df['Element'])):
-    if df['Frequency'][i] >= min_node_weight:
+    if df['Frequency'][i] >= min_node_weight or df['Element'][i] in nodes_in:
       ei = df['Element'][i]
       for j in range(i+1,len(df['Element'])):
-        if df['Frequency'][j] >= min_node_weight:
+        if df['Frequency'][j] >= min_node_weight or df['Element'][j] in nodes_in:
           ej = df['Element'][j]
           if not math.isnan(df[ei][j]) and df[ei][j] > 0 and df['Category'][j] != 'Demographic':
             G.add_edge(ei,ej,weight=df[ei][j],color='b')
@@ -127,7 +137,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
     if ThisIsAnElement:
       # Ignore elements with insignificant frequency. For example, if you are using a disaggregated subgroup
       # and none of them included a given element.
-      ThisIsAnElement = df['Frequency'][j] >= min_node_weight
+      ThisIsAnElement = df['Frequency'][j] >= min_node_weight or df['Element'][j] in nodes_in
     if ThisIsAnElement and element in G.nodes():
       if category == 'Practice':
         G.nodes.data()[element]['color']='r'
@@ -150,6 +160,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
   nodes = G.nodes()
   # Set properties of nodes and edges.
   weights = [G[u][v]['weight']/G.edge_scale for u,v in edges] # Size of edges.
+#   print(nodes.data())
   ncolors = [G.nodes.data()[u]['color'] for u in nodes] # Color of nodes.
   ecolors = [G.nodes.data()[u]['edgecolor'] for u in nodes] # Colors of node borders.
   lwidths = [G.nodes.data()[u]['linewidth'] for u in nodes] # Width of node borders.
@@ -157,7 +168,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
   labeldict = {}
   for j in range(n_Demographics,len(full_database['Element'])):
     # Ignore elements with 0 frequency.
-    if df['Frequency'][j] >= min_node_weight:
+    if df['Frequency'][j] >= min_node_weight or df['Element'][j] in nodes_in:
       labeldict[df['Element'][j]] = str(df['Element Number'][j])
   inv_factor = len(nodes) * 100
   for u,v in edges: # Inverse weight of edges, for centrality distance.
@@ -188,7 +199,7 @@ def MakeGraph(drawings_in,full_database,min_node_weight=1):
   # plt.text(0.5, 0.80, 'Goal',color='b')
   return G
 
-def MakeBootstrapGraph(G):
+def MakeBootstrapGraph(G,cap_edge_weight=True):
   # Make a bootstrap graph of G by reassigning edge values using a Poisson distribution.
 #   G_bootstrap = G
 #   for u,v in G.edges:
@@ -199,8 +210,11 @@ def MakeBootstrapGraph(G):
   G_bootstrap.labeldict = G.labeldict
   inv_factor = len(G.nodes()) * 100
   for u,v in G.edges:
-    # Randomize edge weight, but cap at the node weight of the two nodes u,v.
-    new_weight = min(np.random.poisson(lam=G[u][v]['weight']),G.nodes.data()[u]['weight'],G.nodes.data()[v]['weight'])
+    # Randomize edge weight.
+    new_weight = np.random.poisson(lam=G[u][v]['weight'])
+    if cap_edge_weight:
+      # Cap at the node weight of the two nodes u,v.
+      new_weight = min(new_weight,G.nodes.data()[u]['weight'],G.nodes.data()[v]['weight'])
     if new_weight > 0:
       G_bootstrap.add_edge(u,v,weight=new_weight)
       G_bootstrap[u][v]['weight_inverse']=int(inv_factor/new_weight) # Convert to int to appease betweenness.
@@ -551,7 +565,7 @@ def DrawDendrogram(G,N_nodes=None,big_nodes=None):
     # Count the number of levels required for each node to be split off into its own cluster.
     levels = []
     for node in big_nodes:
-#         print('node')
+#         print(node)
         iteration = 0
         level = 0
         while level == 0:
@@ -756,7 +770,7 @@ def get_var_name(var):
         if value is var:
             return name
 
-def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,subset_name_1=None,subset_name_2=None,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1,num_sig=3):
+def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,subset_name_1=None,subset_name_2=None,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1,num_sig=3,cap_edge_weight=True,measures_in_table=['betweenness']):
   # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
   # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
   # drawing_subset_1, and between all_drawings and drawing_subset_2.
@@ -783,26 +797,26 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   F_2      = []
 
   print('making full network')
-  G_full = MakeGraph(all_drawings,full_database,min_node_weight=min_node_weight)
+  G_full = MakeGraph(all_drawings,full_database,min_node_weight=min_node_weight,node_selection='min_weight')
   clusters_full = DetectClusters(G_full, weight='weight', method=clustering_method)
   print('making network 1')
-  G_1_original = MakeGraph(drawing_subset_1,full_database)
+  G_1_original = MakeGraph(drawing_subset_1,full_database,node_selection='nodes_list',nodes_in=G_full.nodes)
   print('making network 2')
-  G_2_original = MakeGraph(drawing_subset_2,full_database)
+  G_2_original = MakeGraph(drawing_subset_2,full_database,node_selection='nodes_list',nodes_in=G_full.nodes)
 
-  # Remove insignificant nodes from G_1_original and G_2_original.
-  to_remove = []
-  for node in G_1_original.nodes:
-    if node not in G_full.nodes:
-      to_remove.append(node)
-  for node in to_remove:
-    G_1_original.remove_node(node)
-  to_remove = []
-  for node in G_2_original.nodes:
-    if node not in G_full.nodes:
-      to_remove.append(node)
-  for node in to_remove:
-    G_2_original.remove_node(node)
+#   # Remove insignificant nodes from G_1_original and G_2_original.
+#   to_remove = []
+#   for node in G_1_original.nodes:
+#     if node not in G_full.nodes:
+#       to_remove.append(node)
+#   for node in to_remove:
+#     G_1_original.remove_node(node)
+#   to_remove = []
+#   for node in G_2_original.nodes:
+#     if node not in G_full.nodes:
+#       to_remove.append(node)
+#   for node in to_remove:
+#     G_2_original.remove_node(node)
   
   # Create lists for within-category data.
   categories = ['Goal','Member','Practice']
@@ -884,8 +898,8 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   for n in range(N):
     # print('making bootstraps')
     if time_print: delta_time = datetime.datetime.now()
-    G_1 = MakeBootstrapGraph(G_1_original)
-    G_2 = MakeBootstrapGraph(G_2_original)
+    G_1 = MakeBootstrapGraph(G_1_original,cap_edge_weight=cap_edge_weight)
+    G_2 = MakeBootstrapGraph(G_2_original,cap_edge_weight=cap_edge_weight)
     if time_print: delta_time = datetime.datetime.now() - delta_time
     if time_print: print('bootstrapping',delta_time.total_seconds())
     NDC_1.append(NodeDegreeCosine(G_full,G_1))
@@ -1147,14 +1161,41 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('--Bootstrap Comparison Completed--\n\n')
 
     # Write LaTeX-formatted table of centrality measures.
-    convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency ($\%$)} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\\n')
-    convert_file.write('Element (Category) & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ \\\\\n' )
+    header1 = 'Drawing & \multicolumn{2}{c|}{Frequency ($\%$)}'
+    header2 = 'Element (Category) & ' + subset_name_1 + ' & ' + subset_name_2
+    if 'betweenness' in measures_in_table:
+        header1 += '& \multicolumn{3}{c|}{Betweenness} '
+        header2 += ' & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ '
+    if 'normdegree' in measures_in_table:
+        header1 += '& \multicolumn{3}{c|}{Normalized Degree} '
+        header2 += ' & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ '
+    if 'normstrength' in measures_in_table:
+        header1 += '& \multicolumn{3}{c|}{Normalized Strength} '
+        header2 += ' & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ '
+    header1 += '\\\\\n'
+    header2 += '\\\\\n'
+    convert_file.write(header1)
+    convert_file.write(header2)
+#     convert_file.write('Drawing & \multicolumn{2}{c|}{Frequency ($\%$)} & \multicolumn{3}{c|}{Betweenness} & \multicolumn{3}{c|}{Normalized Degree} & \multicolumn{3}{c|}{Normalized Strength} \\\\\n')
+#     header = 
+#     convert_file.write('Element (Category) & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ \\\\\n' )
     convert_file.write('\\hline\n')
     for node in big_nodes:
-      convert_file.write(WriteBootStrapComparisonTableLine(node+' ('+G_1_original.nodes.data()[node]['category']+') ', NumberOut(G_1_original.nodes[node]['weight']/n1*100,1),NumberOut(G_2_original.nodes[node]['weight']/n2*100,1),
-                                                           '$'+Uncertainty(output[node + ' betweenness 1 mean'],     output[node + ' betweenness 1 std'],num_sig)     +'$','$'+Uncertainty(output[node + ' betweenness 2 mean'],     output[node + ' betweenness 2 std'],num_sig)     +'$','$'+NumberOut(output[node + ' betweenness d'],num_sig-1)     +CohensStar(output[node + ' betweenness d'     ])+'$',
-                                                           '$'+Uncertainty(output[node + ' normnodedegree 1 mean'],  output[node + ' normnodedegree 1 std'],num_sig)  +'$','$'+Uncertainty(output[node + ' normnodedegree 2 mean'],  output[node + ' normnodedegree 2 std'],num_sig)  +'$','$'+NumberOut(output[node + ' normnodedegree d'],num_sig-1)  +CohensStar(output[node + ' normnodedegree d'  ])+'$',
-                                                           '$'+Uncertainty(output[node + ' normnodestrength 1 mean'],output[node + ' normnodestrength 1 std'],num_sig)+'$','$'+Uncertainty(output[node + ' normnodestrength 2 mean'],output[node + ' normnodestrength 2 std'],num_sig)+'$','$'+NumberOut(output[node + ' normnodestrength d'],num_sig-1)+CohensStar(output[node + ' normnodestrength d'])+'$'))
+      to_write = node+' ('+G_1_original.nodes.data()[node]['category']+') & $' + NumberOut(G_1_original.nodes[node]['weight']/n1*100,1)+' $ & $' + NumberOut(G_2_original.nodes[node]['weight']/n2*100,1) + '$'
+      if 'betweenness' in measures_in_table:
+        to_write += ' & $' + Uncertainty(output[node + ' betweenness 1 mean'],output[node + ' betweenness 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' betweenness 2 mean'],output[node + ' betweenness 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' betweenness d'],num_sig-1)     +CohensStar(output[node + ' betweenness d'     ])+'$'
+      if 'normdegree' in measures_in_table:
+        to_write += ' & $' + Uncertainty(output[node + ' normdegree 1 mean'],output[node + ' normdegree 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' normdegree 2 mean'],output[node + ' normdegree 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' normdegree d'],num_sig-1)     +CohensStar(output[node + ' normdegree d'     ])+'$'
+      if 'normstrength' in measures_in_table:
+        to_write += ' & $' + Uncertainty(output[node + ' normstrength 1 mean'],output[node + ' normstrength 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' normstrength 2 mean'],output[node + ' normstrength 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' normstrength d'],num_sig-1)     +CohensStar(output[node + ' normstrength d'     ])+'$'
+      to_write += '\\\\\n'
+      convert_file.write(to_write)
+        
+        
+#       convert_file.write(WriteBootStrapComparisonTableLine(node+' ('+G_1_original.nodes.data()[node]['category']+') ', NumberOut(G_1_original.nodes[node]['weight']/n1*100,1),NumberOut(G_2_original.nodes[node]['weight']/n2*100,1),
+#                                                            '$'+Uncertainty(output[node + ' betweenness 1 mean'],     output[node + ' betweenness 1 std'],num_sig)     +'$','$'+Uncertainty(output[node + ' betweenness 2 mean'],     output[node + ' betweenness 2 std'],num_sig)     +'$','$'+NumberOut(output[node + ' betweenness d'],num_sig-1)     +CohensStar(output[node + ' betweenness d'     ])+'$',
+#                                                            '$'+Uncertainty(output[node + ' normnodedegree 1 mean'],  output[node + ' normnodedegree 1 std'],num_sig)  +'$','$'+Uncertainty(output[node + ' normnodedegree 2 mean'],  output[node + ' normnodedegree 2 std'],num_sig)  +'$','$'+NumberOut(output[node + ' normnodedegree d'],num_sig-1)  +CohensStar(output[node + ' normnodedegree d'  ])+'$',
+#                                                            '$'+Uncertainty(output[node + ' normnodestrength 1 mean'],output[node + ' normnodestrength 1 std'],num_sig)+'$','$'+Uncertainty(output[node + ' normnodestrength 2 mean'],output[node + ' normnodestrength 2 std'],num_sig)+'$','$'+NumberOut(output[node + ' normnodestrength d'],num_sig-1)+CohensStar(output[node + ' normnodestrength d'])+'$'))
 
     convert_file.write('\n')
     convert_file.write('Highest-frequency nodes:\n')
@@ -1252,10 +1293,10 @@ def NumberOut(x,num_sig=3):
   return out.format(x=x)
 
 def WriteBootStrapComparisonTableLine(row_header,*strings):
-  print('in WriteBootStrapComparisonTableLine for ',row_header)
+#   print('in WriteBootStrapComparisonTableLine for ',row_header)
   table_line = row_header
   for i in range(len(strings)):
-    print(strings[i])
+#     print(strings[i])
     table_line += ' & ' + strings[i]
   table_line += '\\\\\n'
   return table_line
