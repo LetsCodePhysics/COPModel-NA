@@ -112,8 +112,10 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
 #   for a in df['Frequency'][1:len(df['Frequency'])]:
 #     if a >= min_node_weight: NonZeroFrequencies.append(a)
   for i in range(1,len(df['Frequency'])):
-    if df['Frequency'][i]>min_node_weight: NonZeroFrequencies.append(df['Frequency'][i])
-    # if df['Frequency'][i]>min_node_weight or df['Element'][i] in nodes_in: NonZeroFrequencies.append(df['Frequency'][i])
+    if node_selection == 'nodes_list':
+        if df['Element'][i] in nodes_in and df['Frequency'][i]>0: NonZeroFrequencies.append(df['Frequency'][i])
+    if node_selection == 'min_weight':
+        if df['Frequency'][i]>min_node_weight: NonZeroFrequencies.append(df['Frequency'][i])
   min_frequency = min(NonZeroFrequencies)
   # Create node size scale and edge size scale.
   node_scale = max_frequency/min_frequency
@@ -245,10 +247,17 @@ def MakeBootstrapGraph(G,cap_edge_weight=True):
 
   return G_bootstrap
 
-def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None):
+def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=None):
   # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
   # Comment out this line to keep the same arrangement but change cosmetics.
-  pos = nx.spring_layout(G)
+  if pos == None:
+    pos = nx.spring_layout(G)
+  else:
+    new_pos = {}
+    for key,value in pos.items():
+      if key in G.nodes:
+        new_pos[key] = value
+    pos = new_pos
   edges = G.edges()
   nodes = G.nodes()
   # Set properties of nodes and edges.
