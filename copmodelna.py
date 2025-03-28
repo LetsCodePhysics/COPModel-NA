@@ -112,7 +112,8 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
 #   for a in df['Frequency'][1:len(df['Frequency'])]:
 #     if a >= min_node_weight: NonZeroFrequencies.append(a)
   for i in range(1,len(df['Frequency'])):
-    if df['Frequency'][i]>min_node_weight or df['Element'][i] in nodes_in: NonZeroFrequencies.append(df['Frequency'][i])
+    if df['Frequency'][i]>min_node_weight: NonZeroFrequencies.append(df['Frequency'][i])
+    # if df['Frequency'][i]>min_node_weight or df['Element'][i] in nodes_in: NonZeroFrequencies.append(df['Frequency'][i])
   min_frequency = min(NonZeroFrequencies)
   # Create node size scale and edge size scale.
   node_scale = max_frequency/min_frequency
