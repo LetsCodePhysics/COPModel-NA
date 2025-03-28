@@ -275,7 +275,7 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=No
   plt.text(0.5, 0.87, 'Member',color='g')
   plt.text(0.5, 0.80, 'Goal',color='b')
 
-  return
+  return pos
 
 # Define a function that checks for the current disaggregation conditions.
 # full_database[sn][m] = drawing sn's info for Demographic item in row m
