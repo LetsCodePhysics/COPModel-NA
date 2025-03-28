@@ -271,9 +271,9 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=No
   plt.figure(figsize=figsize)
   nx.draw(G, pos, with_labels=False, labels=G.labeldict, font_size=font_size, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
   # Add a legend for the color-coding.
-  plt.text(0.5, 0.95, 'Practice',color='r')
-  plt.text(0.5, 0.87, 'Member',color='g')
-  plt.text(0.5, 0.80, 'Goal',color='b')
+  plt.text(0.5, 0.95, 'Practice',color='r',fontsize=font_size)
+  plt.text(0.5, 0.87, 'Member',color='g',fontsize=font_size)
+  plt.text(0.5, 0.80, 'Goal',color='b',fontsize=font_size)
 
   return pos
 
