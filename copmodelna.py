@@ -247,7 +247,7 @@ def MakeBootstrapGraph(G,cap_edge_weight=True):
 
   return G_bootstrap
 
-def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=None):
+def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=None,font_size=12):
   # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
   # Comment out this line to keep the same arrangement but change cosmetics.
   if pos == None:
@@ -269,7 +269,7 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=No
 
   # The draw command.
   plt.figure(figsize=figsize)
-  nx.draw(G, pos, with_labels=False, labels=G.labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
+  nx.draw(G, pos, with_labels=False, labels=G.labeldict, font_size=font_size, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
   # Add a legend for the color-coding.
   plt.text(0.5, 0.95, 'Practice',color='r')
   plt.text(0.5, 0.87, 'Member',color='g')
