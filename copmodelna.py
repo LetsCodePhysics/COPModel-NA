@@ -998,7 +998,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_NSCs[category + ' 1'][n] = CategoryNodeStrengthCosine(G_1,G_full,category_lists[category + ' full'])
       if category_counts[category + ' 1'] > 0:
         category_strengths[category + ' 1'][n] = category_strengths[category + ' 1'][n] / category_counts[category + ' 1']
-        category_internal_connections[category + ' 1'][n] = category_internal_connections[category + ' 1'][n] / ((category_counts[category + ' 1']-1)*(category_counts[category + ' 1']-2))
+        category_internal_connections[category + ' 1'][n] = category_internal_connections[category + ' 1'][n] / ((category_counts[category + ' 1']-1)*(category_counts[category + ' 1']-2)*G_1.n_drawings)
         category_betweennesses[category + ' 1'][n] = (category_betweennesses[category + ' 1'][n] / category_counts[category + ' 1'])**(1.0/centrality_power)
         category_closenesses[category + ' 1'][n] = (category_closenesses[category + ' 1'][n] / category_counts[category + ' 1'])**(1.0/centrality_power)
       for node in category_lists[category + ' full']:
@@ -1014,7 +1014,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_NSCs[category + ' 2'][n] = CategoryNodeStrengthCosine(G_2,G_full,category_lists[category + ' full'])
       if category_counts[category + ' 2'] > 0:
         category_strengths[category + ' 2'][n] = category_strengths[category + ' 2'][n] / category_counts[category + ' 2']
-        category_internal_connections[category + ' 2'][n] = category_internal_connections[category + ' 2'][n] / ((category_counts[category + ' 2']-1)*(category_counts[category + ' 2']-2))
+        category_internal_connections[category + ' 2'][n] = category_internal_connections[category + ' 2'][n] / ((category_counts[category + ' 2']-1)*(category_counts[category + ' 2']-2)*G_2.n_drawings)
         category_betweennesses[category + ' 2'][n] = (category_betweennesses[category + ' 2'][n] / category_counts[category + ' 2'])**(1.0/centrality_power)
         category_closenesses[category + ' 2'][n] = (category_closenesses[category + ' 2'][n] / category_counts[category + ' 2'])**(1.0/centrality_power)
     if time_print: delta_time = datetime.datetime.now() - delta_time
