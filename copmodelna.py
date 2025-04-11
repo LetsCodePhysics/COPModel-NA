@@ -26,7 +26,7 @@ from copy import deepcopy
 
 
 # Define a function that creates the desired network.
-def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_weight=1,nodes_in=[]):
+def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_weight=1,nodes_in=[],N_random=None):
   # INPUTS:
   # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
   # full_database = the full set of data read in from Google Sheets
@@ -36,8 +36,6 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
   # OUTPUTS:
   # function returns the graph (network) G based on the included drawings
   # function also creates network diagram color-coded by category
-    
-  randomsample = False
 
   # Set up empty dataframe.
   df = pd.DataFrame()
@@ -81,10 +79,9 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
       df.loc[j,'Element Key'] = ''
   
   drawings_to_use = []
-  if (randomsample):
+  if (N_random != None):
     # Choose N drawings randomly.
-    N = len(drawings_in) # Change when you're ready to random sample.
-    drawings_to_use = np.random.choice(drawings_in,N)
+    drawings_to_use = np.random.choice(drawings_in,N_random)
   else:
     drawings_to_use = drawings_in
   # Create coincidence table from the dataset.
