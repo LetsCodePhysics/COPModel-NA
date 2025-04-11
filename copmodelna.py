@@ -12,6 +12,7 @@ from scipy.stats import f_oneway
 from scipy.cluster.hierarchy import dendrogram
 from itertools import chain, combinations
 from scipy.cluster import hierarchy
+from copy import deepcopy
 # from wordcloud import WordCloud
 
 # Read in the spreadsheet and count the number of drawings.
@@ -1419,3 +1420,15 @@ def GraphCommunityStructures(bootstrap_structures_histogram):
   ax.set_title("Number of Bootstrapped Community Structures at Each Dendrogram Level")
   plt.show()
   return
+
+def GetBigNodes(G,N_nodes):
+    # Return a list of the N_nodes highest-weight nodes from G.
+    return sorted(G.nodes, key=lambda x: G.nodes[x]['weight'], reverse=True)[0:N_nodes]
+
+def PruneLargeNodes(G,N_nodes):
+    # Return a copy of G with the N_nodes highest-weight nodes removed, and the list of nodes that were removed.
+    G_pruned = deepcopy(G)
+    big_nodes = GetBigNodes(G_pruned,N_nodes)
+    G_pruned.remove_nodes_from(big_nodes)
+    return G_pruned,big_nodes
+
