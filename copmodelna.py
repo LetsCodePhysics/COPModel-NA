@@ -1321,3 +1321,101 @@ def Uncertainty(x,dx,num_sig):
             i_start = i
         i += 1
     return str_x + '(' + str_dx[i_start:] + ')'
+
+def CompareBootstrapStructures(G,N,nodes_in,outfile='dendro_status.txt'):
+    # Create N bootstraps of graph G.
+    # Create a dendrogram of nodes_in from each bootstrap.
+    # Return the number of unique community structures at each dendrogram level l.
+    
+    # Create list of community structures.
+    bootstrap_comms = []
+    
+    # Create bootstraps.
+    for n in range(0,N):
+        print(n)
+        with open(outfile, 'w') as convert_file: 
+            current_time = datetime.datetime.now()
+            convert_file.write(str(current_time) + ' bootstrap ' + str(n+1) + ' of ' + str(N))
+        G_bootstrap = MakeBootstrapGraph(G)
+        # Extract communities.
+        bootstrap_comms.append(FilterCommunities(list(nx.community.girvan_newman(G_bootstrap,most_valuable_edge=most_central_edge)),nodes_in))
+        structures_count,structures_histogram = CountCommunities(bootstrap_comms)
+    return structures_count,structures_histogram,bootstrap_comms
+
+def CountCommunities(comms):
+    # comms[n] is the nth list of list of lists, with comms[n][l] the lth community structure in comms[n]
+    # Count how many unique community structures there are at each level l of comms[n]'s dendrogram
+    # Returns structures_count = a list of the counts of unique community structures at each level l
+    # and structures_histogram = a list of lists of the number of times each structure was found at level l.
+    # How many levels deep do we need to go?
+    lmin = 1000000000
+    for n in range(len(comms)):
+        lmin = min(lmin,len(comms[n]))
+#     print(lmin)
+    
+    structures_count     = []
+    structures_histogram = []
+    
+    # Loop over dendrogram level.
+#     convert_file = open('dendro_status.txt', 'w')
+    for l in range(0,lmin):
+        current_time = datetime.datetime.now()
+#         convert_file.write(str(current_time) + ' dendrogram level ' + str(l+1) + ' of ' + str(lmin))
+#         convert_file.write('\n')
+        # Create a list to track the community structures that have been found at this level.
+        comms_found = []
+        histogram   = []
+        # Loop over comms.
+        for n in range(0,len(comms)):
+#             convert_file.write('In comm number'+str(n))
+#             convert_file.write('\n')
+
+            # Check for whether s = comms[n][l] is already in comms_found, ignoring permutations.
+            found_s = False
+            for comm in comms_found:
+                s = comms[n][l].copy()
+                to_remove = []
+                for element in s:
+                    if element == [] or element in comm:
+                        to_remove.append(element)
+                for element in to_remove:
+                    s.remove(element)
+#                 convert_file.write('I ended with len(s)=',len(s))
+                if len(s) == 0:
+                    found_s = True
+                    comm_index = comms_found.index(comm)
+            if found_s:
+                histogram[comm_index] += 1
+            else:
+                comms_found.append(comms[n][l])
+                histogram.append(1)
+#         print(l,len(comms_found))
+        structures_count.append(len(comms_found))
+        structures_histogram.append(histogram)    
+    return structures_count,structures_histogram
+
+def FilterCommunities(comms_in,nodes_in):
+  # comms_in is the list of list of sets from girvan_newman
+  # comms_out is this list of list of lists with only nodes_in
+  comms_out = []
+  for comm_list_in in comms_in:
+    comm_list_out = []
+    for comm_in in comm_list_in:
+      comm_out = []
+      for node in comm_in:
+        if node in nodes_in: comm_out.append(node)
+      comm_list_out.append(comm_out)
+    comms_out.append(comm_list_out)
+  return comms_out
+
+def GraphCommunityStructures(bootstrap_structures_histogram):
+  width = 0.5
+  fig, ax = plt.subplots(figsize=(20,10))
+  for l in range(len(bootstrap_structures_histogram)):
+    bottom = 0
+    for h in bootstrap_structures_histogram[l]:
+      p = ax.bar(l, h, width, label=False, bottom=bottom)
+      bottom += h
+  ax.set_title("Number of Bootstrapped Community Structures at Each Dendrogram Level")
+  plt.show()
+  return
