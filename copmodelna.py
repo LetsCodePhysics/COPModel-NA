@@ -129,6 +129,10 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
           if not math.isnan(df[ei][j]) and df[ei][j] > 0 and df['Category'][j] != 'Demographic':
             G.add_edge(ei,ej,weight=df[ei][j],color='b')
             edge_scale = max(edge_scale,df[ei][j])
+  if node_selection == 'nodes_list': # Check for any missing nodes.
+    for node in nodes_in:
+      if node not in G:
+        G.add_node(node)
   # Color-code nodes based on category.
   for j in range(n_Demographics,len(df['Element'])):
     category = df['Category'][j]
