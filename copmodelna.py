@@ -12,6 +12,7 @@ from scipy.stats import f_oneway
 from scipy.cluster.hierarchy import dendrogram
 from itertools import chain, combinations
 from scipy.cluster import hierarchy
+from copy import deepcopy
 # from wordcloud import WordCloud
 
 # Read in the spreadsheet and count the number of drawings.
@@ -25,7 +26,7 @@ from scipy.cluster import hierarchy
 
 
 # Define a function that creates the desired network.
-def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_weight=1,nodes_in=[]):
+def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_weight=1,nodes_in=[],N_random=None):
   # INPUTS:
   # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
   # full_database = the full set of data read in from Google Sheets
@@ -35,8 +36,6 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
   # OUTPUTS:
   # function returns the graph (network) G based on the included drawings
   # function also creates network diagram color-coded by category
-    
-  randomsample = False
 
   # Set up empty dataframe.
   df = pd.DataFrame()
@@ -80,10 +79,9 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
       df.loc[j,'Element Key'] = ''
   
   drawings_to_use = []
-  if (randomsample):
+  if (N_random != None):
     # Choose N drawings randomly.
-    N = len(drawings_in) # Change when you're ready to random sample.
-    drawings_to_use = np.random.choice(drawings_in,N)
+    drawings_to_use = np.random.choice(drawings_in,N_random)
   else:
     drawings_to_use = drawings_in
   # Create coincidence table from the dataset.
@@ -890,11 +888,10 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   print('setting up dictionaries')
 
   big_nodes = sorted(G_full.nodes, key=lambda x: G_full.nodes[x]['weight'], reverse=True)[0:N_nodes]
-  print('checking big_nodes consistency')
+    
   for node in big_nodes:
     if (node not in G_1_original) or (node not in G_2_original):
       big_nodes.remove(node)
-      print('I removed',node)
   
   centralities_1 = {}
   centralities_2 = {}
@@ -950,43 +947,17 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 
     for node in big_nodes:
       key = node + ' betweenness'
-      if key in bc1:
-        centralities_1[key].append(bc1[node])
-      else:
-        centralities_1[key].append(0)
-#       print('checking bc2 for',key)
-#       print(key in bc2)
-      if key in bc2:
-        centralities_2[key].append(bc2[node])
-      else:
-        centralities_2[key].append(0)
+      centralities_1[key].append(bc1[node])
+      centralities_2[key].append(bc2[node])
       key = node + ' closeness'
-      if node in cc1:
-        centralities_1[key].append(cc1[node])
-      else:
-        centralities_1[key].append(0)
-      if key in cc2:
-        centralities_2[key].append(cc2[node])
-      else:
-        centralities_2[key].append(0)
+      centralities_1[key].append(cc1[node])
+      centralities_2[key].append(cc2[node])
       key = node + ' normnodedegree'
-      if node in G_1.normnodedegree:
-        centralities_1[key].append(G_1.normnodedegree[node])
-      else:
-        centralities_1[key].append(0)
-      if node in G_2.normnodedegree:
-        centralities_2[key].append(G_2.normnodedegree[node])
-      else:
-        centralities_2[key].append(0)
+      centralities_1[key].append(G_1.normnodedegree[node])
+      centralities_2[key].append(G_2.normnodedegree[node])
       key = node + ' normnodestrength'
-      if node in G_1.normnodestrength:
-        centralities_1[key].append(G_1.normnodestrength[node])
-      else:
-        centralities_1[key].append(0)
-      if node in G_2.normnodestrength:
-        centralities_2[key].append(G_2.normnodestrength[node])
-      else:
-        centralities_2[key].append(0)
+      centralities_1[key].append(G_1.normnodestrength[node])
+      centralities_2[key].append(G_2.normnodestrength[node])
 #   category_strengths = {}
 #   category_internal_connections = {}
 #   category_NDCs = {}
@@ -1153,10 +1124,9 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
   print('--Bootstrap Comparison Completed--')
   print('Highest-frequency nodes:')
   for node in big_nodes:
-    if node in bc1 and node in bc2:
-      print(node,'     Full count:',      G_full.nodes[node]['weight'],' (',      G_full.nodes[node]['weight']/nfull*100,'%) ')
-      print(node,' ',subset_name_1,' count:',G_1_original.nodes[node]['weight'],' (',G_1_original.nodes[node]['weight']/n1   *100,'%) ')
-      print(node,' ',subset_name_2,' count:',G_2_original.nodes[node]['weight'],' (',G_2_original.nodes[node]['weight']/n2   *100,'%) ')
+    print(node,'     Full count:',      G_full.nodes[node]['weight'],' (',      G_full.nodes[node]['weight']/nfull*100,'%) ')
+    print(node,' ',subset_name_1,' count:',G_1_original.nodes[node]['weight'],' (',G_1_original.nodes[node]['weight']/n1   *100,'%) ')
+    print(node,' ',subset_name_2,' count:',G_2_original.nodes[node]['weight'],' (',G_2_original.nodes[node]['weight']/n2   *100,'%) ')
   print('First Subset')
   print('     NDC ',NDC_1_mean,'±',NDC_1_std)
   print('     NWC ',NWC_1_mean,'±',NWC_1_std)
@@ -1219,15 +1189,14 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
 #     convert_file.write('Element (Category) & ' + subset_name_1 + ' & ' + subset_name_2 + ' & '+ subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ & ' + subset_name_1 + ' & ' + subset_name_2 + ' & $d$ \\\\\n' )
     convert_file.write('\\hline\n')
     for node in big_nodes:
-      if node in bc1 and node in bc2:
-        to_write = node+' ('+G_1_original.nodes.data()[node]['category']+') & $' + NumberOut(G_1_original.nodes[node]['weight']/n1*100,1)+' $ & $' + NumberOut(G_2_original.nodes[node]['weight']/n2*100,1) + '$'
-        if 'betweenness' in measures_in_table:
-          to_write += ' & $' + Uncertainty(output[node + ' betweenness 1 mean'],output[node + ' betweenness 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' betweenness 2 mean'],output[node + ' betweenness 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' betweenness d'],num_sig-1)     +CohensStar(output[node + ' betweenness d'     ])+'$'
-        if 'normdegree' in measures_in_table:
-          to_write += ' & $' + Uncertainty(output[node + ' normdegree 1 mean'],output[node + ' normdegree 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' normdegree 2 mean'],output[node + ' normdegree 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' normdegree d'],num_sig-1)     +CohensStar(output[node + ' normdegree d'     ])+'$'
-        if 'normstrength' in measures_in_table:
-          to_write += ' & $' + Uncertainty(output[node + ' normstrength 1 mean'],output[node + ' normstrength 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' normstrength 2 mean'],output[node + ' normstrength 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' normstrength d'],num_sig-1)     +CohensStar(output[node + ' normstrength d'     ])+'$'
-        to_write += '\\\\\n'
+      to_write = node+' ('+G_1_original.nodes.data()[node]['category']+') & $' + NumberOut(G_1_original.nodes[node]['weight']/n1*100,1)+' $ & $' + NumberOut(G_2_original.nodes[node]['weight']/n2*100,1) + '$'
+      if 'betweenness' in measures_in_table:
+        to_write += ' & $' + Uncertainty(output[node + ' betweenness 1 mean'],output[node + ' betweenness 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' betweenness 2 mean'],output[node + ' betweenness 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' betweenness d'],num_sig-1)     +CohensStar(output[node + ' betweenness d'     ])+'$'
+      if 'normdegree' in measures_in_table:
+        to_write += ' & $' + Uncertainty(output[node + ' normdegree 1 mean'],output[node + ' normdegree 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' normdegree 2 mean'],output[node + ' normdegree 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' normdegree d'],num_sig-1)     +CohensStar(output[node + ' normdegree d'     ])+'$'
+      if 'normstrength' in measures_in_table:
+        to_write += ' & $' + Uncertainty(output[node + ' normstrength 1 mean'],output[node + ' normstrength 1 std'],num_sig) + '$ & $' + Uncertainty(output[node + ' normstrength 2 mean'],output[node + ' normstrength 2 std'],num_sig) + ' $ & $' + NumberOut(output[node + ' normstrength d'],num_sig-1)     +CohensStar(output[node + ' normstrength d'     ])+'$'
+      to_write += '\\\\\n'
       convert_file.write(to_write)
         
         
@@ -1239,10 +1208,9 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
     convert_file.write('\n')
     convert_file.write('Highest-frequency nodes:\n')
     for node in big_nodes:
-      if node in bc1 and node in bc2:
-        convert_file.write(node+'     Full count:'+      str(G_full.nodes[node]['weight'])+' ('+      str(G_full.nodes[node]['weight']/nfull*100)+'%) \n')
-        convert_file.write(node+' '+subset_name_1+' count:'+str(G_1_original.nodes[node]['weight'])+' ('+str(G_1_original.nodes[node]['weight']/n1   *100)+'%) \n')
-        convert_file.write(node+' '+subset_name_2+' count:'+str(G_2_original.nodes[node]['weight'])+' ('+str(G_2_original.nodes[node]['weight']/n2   *100)+'%) \n')
+      convert_file.write(node+'     Full count:'+      str(G_full.nodes[node]['weight'])+' ('+      str(G_full.nodes[node]['weight']/nfull*100)+'%) \n')
+      convert_file.write(node+' '+subset_name_1+' count:'+str(G_1_original.nodes[node]['weight'])+' ('+str(G_1_original.nodes[node]['weight']/n1   *100)+'%) \n')
+      convert_file.write(node+' '+subset_name_2+' count:'+str(G_2_original.nodes[node]['weight'])+' ('+str(G_2_original.nodes[node]['weight']/n2   *100)+'%) \n')
     convert_file.write('####################################')
     convert_file.write('\n')
     convert_file.write(subset_name_1+' (N='+str(n1)+')')
@@ -1449,3 +1417,14 @@ def GraphCommunityStructures(bootstrap_structures_histogram):
   ax.set_title("Number of Bootstrapped Community Structures at Each Dendrogram Level")
   plt.show()
   return
+
+def GetBigNodes(G,N_nodes):
+    # Return a list of the N_nodes highest-weight nodes from G.
+    return sorted(G.nodes, key=lambda x: G.nodes[x]['weight'], reverse=True)[0:N_nodes]
+
+def PruneLargeNodes(G,N_nodes):
+    # Return a copy of G with the N_nodes highest-weight nodes removed, and the list of nodes that were removed.
+    G_pruned = deepcopy(G)
+    big_nodes = GetBigNodes(G_pruned,N_nodes)
+    G_pruned.remove_nodes_from(big_nodes)
+    return G_pruned,big_nodes
