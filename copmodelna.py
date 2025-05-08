@@ -204,7 +204,7 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
   # plt.text(0.5, 0.80, 'Goal',color='b')
   return G
 
-def MakeBootstrapGraph(G,cap_edge_weight=True):
+def MakeBootstrapGraph(G,cap_edge_weight=False):
   # Make a bootstrap graph of G by reassigning edge values using a Poisson distribution.
 #   G_bootstrap = G
 #   for u,v in G.edges:
@@ -782,7 +782,7 @@ def get_var_name(var):
         if value is var:
             return name
 
-def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,subset_name_1=None,subset_name_2=None,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1,num_sig=3,cap_edge_weight=True,measures_in_table=['betweenness']):
+def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_database,N,subset_name_1=None,subset_name_2=None,N_nodes=5,file_out='bootstrapcomparison.txt',time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=1,num_sig=3,cap_edge_weight=False,measures_in_table=['betweenness']):
   # Carry out N bootstraps on each of the data sets (all_drawings, drawing_subset_1,drawing_subset_2).
   # Calculate the average and standard deviation for NDC, EEJ, and purity between all_drawings and
   # drawing_subset_1, and between all_drawings and drawing_subset_2.
@@ -1433,7 +1433,7 @@ def PruneLargeNodes(G,N_nodes):
     G_pruned.remove_nodes_from(big_nodes)
     return G_pruned,big_nodes
 
-def RunBootstrap(drawings,full_database,N=1200,subset_name=None,N_nodes=5,nodes_you_want=[],file_out=None,time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=5,nodes_in=None,num_sig=3,cap_edge_weight=True,measures_in_table=['frequency','betweenness']):
+def RunBootstrap(drawings,full_database,N=1200,subset_name=None,N_nodes=5,nodes_you_want=[],file_out=None,time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=5,nodes_in=None,num_sig=3,cap_edge_weight=False,measures_in_table=['frequency','betweenness']):
     # Carry out N bootstraps on drawings.
     # Return average and standard deviation for all measures_in_table for the N_nodes biggest nodes and the nodes_you_want.
     if subset_name == None:
