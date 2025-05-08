@@ -1666,7 +1666,7 @@ def CompareBootstrapCentralities(nodes_in,list_of_list_of_centralities,n,list_of
 
     return output
 
-def CompareGroups(list_of_groups=None,full_database=None,N=1200,min_node_weight=5,group_names=None,N_nodes=20,nodes_you_want=[],file_out=None,num_sig=3,time_print=False,centrality_power=2,clustering_method='fast-greedy',nodes_in=nodes_in,cap_edge_weight=False,measures_in_table=['betweenness']):
+def CompareGroups(list_of_groups=None,full_database=None,N=1200,min_node_weight=5,group_names=None,N_nodes=20,nodes_you_want=[],file_out=None,num_sig=3,time_print=False,centrality_power=2,clustering_method='fast-greedy',nodes_in=None,cap_edge_weight=False,measures_in_table=['betweenness']):
     # Run a bootstrap comparison between the groups listed in list_of_gropus.
     # Print documentation.
     if list_of_groups==None:
