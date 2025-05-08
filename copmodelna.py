@@ -1432,3 +1432,290 @@ def PruneLargeNodes(G,N_nodes):
     big_nodes = GetBigNodes(G_pruned,N_nodes)
     G_pruned.remove_nodes_from(big_nodes)
     return G_pruned,big_nodes
+
+def RunBootstrap(drawings,full_database,N=1200,subset_name=None,N_nodes=5,nodes_you_want=[],file_out=None,time_print=False,centrality_power=2,clustering_method='fast-greedy',min_node_weight=5,nodes_in=None,num_sig=3,cap_edge_weight=True,measures_in_table=['frequency','betweenness']):
+    # Carry out N bootstraps on drawings.
+    # Return average and standard deviation for all measures_in_table for the N_nodes biggest nodes and the nodes_you_want.
+    if subset_name == None:
+        subset_name = get_var_name(drawings)
+
+    if file_out == None:
+        file_out = str(datetime.datetime.now()) + '-' + subset_name + '.txt'
+        
+    if nodes_in == None:
+        G = MakeGraph(drawings,full_database,min_node_weight=min_node_weight,node_selection='min_weight')
+    else:
+        G = MakeGraph(drawings,full_database,nodes_in=nodes_in,node_selection='nodes_list')
+    clusters = DetectClusters(G, weight='weight', method=clustering_method)
+  
+    # Create lists for within-category data.
+    categories = ['Goal','Member','Practice']
+    category_counts = {'measure':'counts'}
+    category_weights = {'measure':'weights'}
+    category_strengths = {'measure':'strengths'}
+    category_internal_connections = {'measure':'internal connections'}
+    category_betweennesses = {'measure':'betweennesses'}
+    category_closenesses = {'measure':'closenesses'}
+  
+    category_lists = {}
+    for category in categories:
+        category_lists[category] = []
+        category_weights[category] = 0
+        category_counts[category] = 0
+        category_strengths[category] = []
+        category_internal_connections[category] = []
+        category_betweennesses[category] = []
+        category_closenesses[category] = []
+        for node in G:
+            if G.nodes.data()[node]['category'] == category:
+                category_lists[category].append(node)
+                category_weights[category] += G.nodes.data()[node]['weight']
+                category_counts[category] += 1
+        if category_counts[category] > 0:
+            category_weights[category] = category_weights[category] / category_counts[category]
+
+    big_nodes = GetBigNodes(G,N_nodes)
+    for node in nodes_you_want:
+        if node not in big_nodes:
+            big_nodes.append(node)
+    
+    centralities = {}
+    for node in big_nodes:
+        for measure in [' frequency',' betweenness',' closeness',' normnodedegree',' normnodestrength']:
+            key = node + measure
+            centralities[key] = []
+            centralities[key] = []
+
+    time_start = datetime.datetime.now()
+    for n in range(N):
+        if time_print: delta_time = datetime.datetime.now()
+        Gb = MakeBootstrapGraph(G,cap_edge_weight=cap_edge_weight)
+        if time_print: delta_time = datetime.datetime.now() - delta_time
+        if time_print: print('bootstrapping',delta_time.total_seconds())
+        clusters_b = DetectClusters(Gb, weight='weight', method=clustering_method)
+
+        bc = Gb.betweenness
+        cc = Gb.closeness
+
+        for node in big_nodes:
+            key = node + ' frequency'
+            centralities[key].append(Gb.nodes[node]['weight'])
+            key = node + ' betweenness'
+            centralities[key].append(bc[node])
+            key = node + ' closeness'
+            centralities[key].append(cc[node])
+            key = node + ' normnodedegree'
+            centralities[key].append(Gb.normnodedegree[node])
+            key = node + ' normnodestrength'
+            centralities[key].append(Gb.normnodestrength[node])
+
+        if time_print: delta_time = datetime.datetime.now()
+        for category in categories:
+            category_strengths[category].append(0)
+            category_internal_connections[category].append(0)
+            category_betweennesses[category].append(0)
+            category_closenesses[category].append(0)
+
+            for node in category_lists[category]:
+                if node in Gb:
+                    category_strengths[category][n] += NodeStrength(Gb,node)
+                    for other_node in category_lists[category]:
+                        if (node,other_node) in Gb.edges:
+                            category_internal_connections[category][n] += Gb.edges[node,other_node]['weight']
+                            category_betweennesses[category][n]        += bc[node]**centrality_power
+                            category_closenesses[category][n]          += cc[node]**centrality_power
+            if category_counts[category] > 0:
+                category_strengths[category][n] = category_strengths[category][n] / category_counts[category]
+                category_internal_connections[category][n] = category_internal_connections[category][n] / ((category_counts[category]-1)*(category_counts[category]-2)*Gb.n_drawings)
+                category_betweennesses[category][n] = (category_betweennesses[category][n] / category_counts[category])**(1.0/centrality_power)
+                category_closenesses[category][n] = (category_closenesses[category][n] / category_counts[category])**(1.0/centrality_power)
+
+        if time_print: delta_time = datetime.datetime.now() - delta_time
+        if time_print: print('category measures',delta_time.total_seconds())
+
+        print('Bootstrap',n+1,'of',N,'completed.')
+        time_estimate = (datetime.datetime.now() - time_start).total_seconds() / (n+1) * (N-n) / 3600
+        print('### This run should finish in',time_estimate,'hours. ###')
+
+        with open(file_out, 'w') as convert_file: 
+            convert_file.write('Bootstrap '+str(n+1)+' of '+str(N)+' completed at ' + str(datetime.datetime.now()))
+            convert_file.write('### This run should finish in'+str(time_estimate)+'hours. ###')
+
+  
+    n = len(drawings)
+    
+    for category in categories:
+        category_strengths[category + ' mean'] = np.mean(category_strengths[category])
+        category_strengths[category + ' std']  = np.std(category_strengths[category])
+        category_internal_connections[category + ' mean'] = np.mean(category_internal_connections[category])
+        category_internal_connections[category + ' std']  = np.std(category_internal_connections[category])
+        category_betweennesses[category + ' mean'] = np.mean(category_betweennesses[category])
+        category_betweennesses[category + ' std']  = np.std(category_betweennesses[category])
+        category_closenesses[category + ' mean'] = np.mean(category_closenesses[category])
+        category_closenesses[category + ' std']  = np.std(category_closenesses[category])
+    
+    for node in big_nodes:
+        for measure in [' frequency',' betweenness',' closeness',' normnodedegree',' normnodestrength']:
+            key = node + measure
+            centralities[key + ' mean'] = np.average(centralities[key])
+            centralities[key + ' std'] = np.std(centralities[key])
+    
+    print('--Bootstrap Comparison Completed--')
+#     print('Highest-frequency nodes:')
+#     for node in big_nodes:
+#         print(node,' ',subset_name,' count:',G.nodes[node]['weight'],' (',G.nodes[node]['weight']/n*100,'%) ')
+
+    with open(file_out, 'w') as convert_file: 
+        convert_file.write('FINISHED at ' + str(datetime.datetime.now()))
+        convert_file.write('\n')
+        convert_file.write('N = '+str(N))
+        convert_file.write('\n')
+        convert_file.write(subset_name)
+        convert_file.write('\n')
+        convert_file.write('N_nodes = '+str(N_nodes))
+        convert_file.write('\n')
+        convert_file.write('centrality_power = '+str(centrality_power))
+        convert_file.write('\n')
+        convert_file.write('clustering_method = '+clustering_method)
+        convert_file.write('\n')
+        convert_file.write('min_node_weight = '+str(min_node_weight))
+        convert_file.write('\n')
+        convert_file.write('--Bootstrap Comparison Completed--\n\n')
+
+        to_write = ''
+        for node in big_nodes:
+            for node in big_nodes:
+                for measure in [' frequency',' betweenness',' closeness',' normnodedegree',' normnodestrength']:
+                    key = node + measure
+                    to_write += key + ' : ' + Uncertainty(np.average(centralities[key]),np.std(centralities[key]),num_sig) + str(centralities[key]) + '\n'
+        convert_file.write(to_write)
+
+        convert_file.write('=== Within-Category Measures ===' + '\n')
+        for category in categories:
+            convert_file.write(category + '\n')
+            print(category)
+            convert_file.write('Subset ' + '\n')
+            convert_file.write('weights' + ' '+str(category_weights[category]) + '\n')
+            for dictionary in [category_strengths,category_internal_connections,category_betweennesses,category_closenesses]:
+                convert_file.write(dictionary['measure'] + ' '+str(dictionary[category + ' mean']) + ' ± ' + str(dictionary[category + ' std']) + '\n')
+        convert_file.write('####################################')
+        convert_file.write('\n')
+
+    return big_nodes,centralities,n
+
+def CompareBootstrapCentralities(nodes_in,list_of_list_of_centralities,n,list_of_subset_names=None,file_out=None,num_sig=3,centralities=['frequency','betweenness']):
+    # Produce comparison table with effect sizes between the two subsets.
+    # nodes_in = [node1,node2,...] list of nodes you want in the table. Any nodes missing from a centralities_n list will be treated as zero.
+    # list_of_list_of_centralities = [centralities_1,centralities_2,...] list of centralities output from RunBootstrap.
+    # list_of_subset_names = [name_1,name_2,...] name of each subset represneted in list_of_list_of_centralities
+    # n = [n1,n2,...] number of drawings in each subset
+    # Assumes that 0th subset is the full network and does not make comparisons against it.
+
+    if file_out == None:
+        file_out = str(datetime.datetime.now()) + '-bootstrap.txt'
+    
+    write_this = open(file_out, 'w')
+    
+    # Create a header.
+    to_write = 'Element '
+    for i in range(len(list_of_subset_names)):
+        to_write += ' & $f_{i}^{\\textrm{' + list_of_subset_names[i] + '}}$ '
+    for i in range(len(list_of_subset_names)):
+        for j in range(i+1,len(list_of_subset_names)):
+            for centrality in centralities:
+                to_write += ' & ' + centrality + ' $d_{i}^{\\textrm{' + list_of_subset_names[i] + ','+ list_of_subset_names[j] + '}}$ '
+    to_write += '\\\\\n'
+    
+    write_this.write(to_write)
+    
+    output = {}
+    
+    # Loop over nodes.
+    for node in nodes_in:
+        to_write = node
+        # List each subset's centrality mean and standard deviation.
+        for i in range(len(list_of_list_of_centralities)):
+            for centrality in centralities: 
+                key = node + ' ' + centrality
+                if centrality == 'frequency' and key + ' mean' in list_of_list_of_centralities[i]:
+                    avg = list_of_list_of_centralities[i][key + ' mean']
+                    to_write += ' & $ ' + NumberOut(avg,num_sig) + ' $'
+                else:
+                    if key + ' std' in list_of_list_of_centralities[i]:
+                        avg = list_of_list_of_centralities[i][key + ' mean']
+                        std = list_of_list_of_centralities[i][key + ' std' ]
+                        to_write += ' & $ ' + Uncertainty(avg,std,num_sig) + ' $'
+                    else:
+                        avg = 0
+                        std = 0
+                        to_write += ' & - '
+        # Calculate effect sizes.
+        for i in range(1,len(list_of_list_of_centralities)):
+            for j in range(i+1,len(list_of_list_of_centralities)):
+                for centrality in centralities: 
+                    if centrality != 'frequency':
+                        key = node + ' ' + centrality
+                        if key + ' std' in list_of_list_of_centralities[i] and key + ' std' in list_of_list_of_centralities[j]:
+                            d = CohensD(list_of_list_of_centralities[i][key + ' mean'],list_of_list_of_centralities[i][key + ' std'],n[i],list_of_list_of_centralities[j][key + ' mean'],list_of_list_of_centralities[j][key + ' std'],n[j])
+                            output[list_of_subset_names[i] + ',' + list_of_subset_names[j] + ' ' + key] = d
+                            to_write += ' & $ ' + NumberOut(d,num_sig-1) + CohensStar(d) + ' $'
+                        else:
+                            to_write += ' & - '
+        to_write += ' \\\\\n'
+        write_this.write(to_write)
+
+    return output
+
+def CompareGroups(list_of_groups=None,full_database=None,N=1200,min_node_weight=5,group_names=None,N_nodes=20,nodes_you_want=[],file_out=None,num_sig=3,time_print=False,centrality_power=2,clustering_method='fast-greedy',nodes_in=nodes_in,cap_edge_weight=False,measures_in_table=['betweenness']):
+    # Run a bootstrap comparison between the groups listed in list_of_gropus.
+    # Print documentation.
+    if list_of_groups==None:
+        print('+============================================================================================+')
+        print('|Hello! This is the main function for generating a bootstrap comparison of subnetworks.      |')
+        print('|Please run CompareGroups(args) with the following arguments.                                |')
+        print('|Anything with a default value can be omitted to use the default (recommended for beginners.)|')
+        print('|list_of_groups = a list of groups of students                                               |')
+        print('|                 The first group MUST be the full network.                                  |')
+        print('|                 Each group should be a list created by MakeSubgroup().                     |')
+        print('|group_names = a list of names for each group                                                |')
+        print('|                 The first group MUST be the full network.                                  |')
+        print('|full_database = the pandas database you read in from Google Sheets                          |')
+        print('|N = the number of bootstrap iterations (default 1200)                                       |')
+        print('|min_node_weight = the minimum weight of nodes to include (default 5)                        |')
+        print('|                  Nodes with frequency less than this value will be exlucded.               |')
+        print('|N_nodes = the number of highest-frequency nodes to include in the export table (default 20) |')
+        print('|nodes_you_want = a list of additional nodes you want to include in the export table         |')
+        print('|file_out = the name of the file to write the export table (must end with .txt)              |')
+        print('|           This will default to the date and time . txt.                                    |')
+        print('|           A file for each group will have the same name prepended with the group name.     |')
+        print('|num_sig = the number of significant digits you want in the output table (default 3)         |')
+        print('|cap_edge_weight = whether you want to maximize the edge weight randomization by each        |')
+        print('|                  node\'s frequency (default False)                                          |')
+        print('|measures_in_table = list of the measures to include in the output table                     |')
+        print('|                    Currently only betweenness is implemented so don\'t bother changing it.  |')
+        print('|centrality_power = power value to use for within-group averages (default 2)                 |')
+        print('|clustering_method = method employed to identify clusters of nodes (default fast-greedy)     |')
+        print('+============================================================================================+')
+        return
+    
+    if len(group_names) != len(list_of_groups):
+        group_names = [i for i in range(len(list_of_groups))]
+        
+    if file_out == None:
+        file_out = str(datetime.datetime.now()) + '-comparison.txt'
+    
+    G_full = MakeGraph(list_of_groups[0],full_database,node_selection='min_weight',min_node_weight=min_node_weight)
+    big_nodes=GetBigNodes(G_full,N_nodes)
+    for node in nodes_you_want:
+        if node not in big_nodes:
+            big_nodes.append(nodes_you_want)
+    list_of_centralities = []
+    list_of_ns = []
+    for ig in range(len(list_of_groups)):
+        this_file = group_names[ig] + '_' + file_out
+        these_big_nodes,these_centralities,these_n = RunBootstrap(list_of_groups[ig],full_database,N,subset_name=group_names[ig],N_nodes=N_nodes,nodes_you_want=nodes_you_want,file_out=this_file,time_print=time_print,centrality_power=centrality_power,clustering_method=clustering_method,nodes_in=nodes_in,num_sig=num_sig,cap_edge_weight=cap_edge_weight,measures_in_table=measures_in_table)
+        list_of_centralities.append(centralities)
+        list_of_ns.append(n)
+    output = BootStrapComparisonV2(big_nodes,list_of_centralities,list_of_ns,group_names,file_out=file_out,num_sig=num_sig)
+    
+    return output
