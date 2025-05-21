@@ -1714,8 +1714,8 @@ def CompareGroups(list_of_groups=None,full_database=None,N=1200,min_node_weight=
     for ig in range(len(list_of_groups)):
         this_file = group_names[ig] + '_' + file_out
         these_big_nodes,these_centralities,these_n = RunBootstrap(list_of_groups[ig],full_database,N,subset_name=group_names[ig],N_nodes=N_nodes,nodes_you_want=nodes_you_want,file_out=this_file,time_print=time_print,centrality_power=centrality_power,clustering_method=clustering_method,nodes_in=nodes_in,num_sig=num_sig,cap_edge_weight=cap_edge_weight,measures_in_table=measures_in_table)
-        list_of_centralities.append(centralities)
-        list_of_ns.append(n)
+        list_of_centralities.append(these_centralities)
+        list_of_ns.append(these_n)
     output = CompareBootstrapCentralities(big_nodes,list_of_centralities,list_of_ns,group_names,file_out=file_out,num_sig=num_sig)
     
     return output
