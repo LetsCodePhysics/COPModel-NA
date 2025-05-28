@@ -998,7 +998,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_NDCs[category + ' 1'][n] = CategoryNodeDegreeCosine(G_1,G_full,category_lists[category + ' full'])
       category_NWCs[category + ' 1'][n] = CategoryNodeWeightCosine(G_1,G_full,category_lists[category + ' full'])
       category_NSCs[category + ' 1'][n] = CategoryNodeStrengthCosine(G_1,G_full,category_lists[category + ' full'])
-      if category_counts[category + ' 1'] > 0:
+      if category_counts[category + ' 1'] > 2:
         category_strengths[category + ' 1'][n] = category_strengths[category + ' 1'][n] / category_counts[category + ' 1']
         category_internal_connections[category + ' 1'][n] = category_internal_connections[category + ' 1'][n] / ((category_counts[category + ' 1']-1)*(category_counts[category + ' 1']-2)*G_1.n_drawings)
         category_betweennesses[category + ' 1'][n] = (category_betweennesses[category + ' 1'][n] / category_counts[category + ' 1'])**(1.0/centrality_power)
@@ -1014,7 +1014,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_NDCs[category + ' 2'][n] = CategoryNodeDegreeCosine(G_2,G_full,category_lists[category + ' full'])
       category_NWCs[category + ' 2'][n] = CategoryNodeWeightCosine(G_2,G_full,category_lists[category + ' full'])
       category_NSCs[category + ' 2'][n] = CategoryNodeStrengthCosine(G_2,G_full,category_lists[category + ' full'])
-      if category_counts[category + ' 2'] > 0:
+      if category_counts[category + ' 2'] > 2:
         category_strengths[category + ' 2'][n] = category_strengths[category + ' 2'][n] / category_counts[category + ' 2']
         category_internal_connections[category + ' 2'][n] = category_internal_connections[category + ' 2'][n] / ((category_counts[category + ' 2']-1)*(category_counts[category + ' 2']-2)*G_2.n_drawings)
         category_betweennesses[category + ' 2'][n] = (category_betweennesses[category + ' 2'][n] / category_counts[category + ' 2'])**(1.0/centrality_power)
@@ -1524,7 +1524,7 @@ def RunBootstrap(drawings,full_database,N=1200,subset_name=None,N_nodes=5,nodes_
                             category_internal_connections[category][n] += Gb.edges[node,other_node]['weight']
                             category_betweennesses[category][n]        += bc[node]**centrality_power
                             category_closenesses[category][n]          += cc[node]**centrality_power
-            if category_counts[category] > 0:
+            if category_counts[category] > 2:
                 category_strengths[category][n] = category_strengths[category][n] / category_counts[category]
                 category_internal_connections[category][n] = category_internal_connections[category][n] / ((category_counts[category]-1)*(category_counts[category]-2)*Gb.n_drawings)
                 category_betweennesses[category][n] = (category_betweennesses[category][n] / category_counts[category])**(1.0/centrality_power)
