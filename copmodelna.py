@@ -998,7 +998,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_NDCs[category + ' 1'][n] = CategoryNodeDegreeCosine(G_1,G_full,category_lists[category + ' full'])
       category_NWCs[category + ' 1'][n] = CategoryNodeWeightCosine(G_1,G_full,category_lists[category + ' full'])
       category_NSCs[category + ' 1'][n] = CategoryNodeStrengthCosine(G_1,G_full,category_lists[category + ' full'])
-      if category_counts[category + ' 1'] > 2:
+      if category_counts[category + ' 1'] > 0:
         category_strengths[category + ' 1'][n] = category_strengths[category + ' 1'][n] / category_counts[category + ' 1']
         category_internal_connections[category + ' 1'][n] = category_internal_connections[category + ' 1'][n] / ((category_counts[category + ' 1']-1)*(category_counts[category + ' 1']-2)*G_1.n_drawings)
         category_betweennesses[category + ' 1'][n] = (category_betweennesses[category + ' 1'][n] / category_counts[category + ' 1'])**(1.0/centrality_power)
@@ -1014,7 +1014,7 @@ def BootStrapComparison(all_drawings,drawing_subset_1,drawing_subset_2,full_data
       category_NDCs[category + ' 2'][n] = CategoryNodeDegreeCosine(G_2,G_full,category_lists[category + ' full'])
       category_NWCs[category + ' 2'][n] = CategoryNodeWeightCosine(G_2,G_full,category_lists[category + ' full'])
       category_NSCs[category + ' 2'][n] = CategoryNodeStrengthCosine(G_2,G_full,category_lists[category + ' full'])
-      if category_counts[category + ' 2'] > 2:
+      if category_counts[category + ' 2'] > 0:
         category_strengths[category + ' 2'][n] = category_strengths[category + ' 2'][n] / category_counts[category + ' 2']
         category_internal_connections[category + ' 2'][n] = category_internal_connections[category + ' 2'][n] / ((category_counts[category + ' 2']-1)*(category_counts[category + ' 2']-2)*G_2.n_drawings)
         category_betweennesses[category + ' 2'][n] = (category_betweennesses[category + ' 2'][n] / category_counts[category + ' 2'])**(1.0/centrality_power)
@@ -1619,11 +1619,14 @@ def CompareBootstrapCentralities(nodes_in,list_of_list_of_centralities,n,list_of
     # Create a header.
     to_write = 'Element '
     for i in range(len(list_of_subset_names)):
-        to_write += ' & $f_{i}^{\\textrm{' + list_of_subset_names[i] + '}}$ '
-    for i in range(len(list_of_subset_names)):
+        for centrality in centralities:
+            if centrality == 'frequency': to_write += ' & $f_{i}^{\\textrm{' + list_of_subset_names[i] + '}}$ '
+            if centrality == 'betweenness': to_write += ' & $b_{i}^{\\textrm{' + list_of_subset_names[i] + '}}$ '
+    for i in range(1,len(list_of_subset_names)):
         for j in range(i+1,len(list_of_subset_names)):
             for centrality in centralities:
-                to_write += ' & ' + centrality + ' $d_{i}^{\\textrm{' + list_of_subset_names[i] + ','+ list_of_subset_names[j] + '}}$ '
+                if centrality != 'frequency':
+                    to_write += ' & ' + centrality + ' $d_{i}^{\\textrm{' + list_of_subset_names[i] + ','+ list_of_subset_names[j] + '}}$ '
     to_write += '\\\\\n'
     
     write_this.write(to_write)
@@ -1637,6 +1640,7 @@ def CompareBootstrapCentralities(nodes_in,list_of_list_of_centralities,n,list_of
         for i in range(len(list_of_list_of_centralities)):
             for centrality in centralities: 
                 key = node + ' ' + centrality
+                print('I am writing',key)
                 if centrality == 'frequency' and key + ' mean' in list_of_list_of_centralities[i]:
                     avg = list_of_list_of_centralities[i][key + ' mean']
                     to_write += ' & $ ' + NumberOut(avg,num_sig) + ' $'
