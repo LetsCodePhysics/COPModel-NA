@@ -154,6 +154,7 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
       G.nodes.data()[element]['edgecolor']=G.nodes.data()[element]['color']
       G.nodes.data()[element]['linewidth']=1.0
       G.nodes.data()[element]['weight']=df['Frequency'][j]
+      G.nodes.data()[element]['percent weight']=df['Frequency'][j]/len(drawings_in)
       G.nodes.data()[element]['category']=category
   G.edge_scale = edge_scale
   G.node_scale = node_scale
