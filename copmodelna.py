@@ -13,6 +13,8 @@ from scipy.cluster.hierarchy import dendrogram
 from itertools import chain, combinations
 from scipy.cluster import hierarchy
 from copy import deepcopy
+import plotly.graph_objects as go
+import plotly.express as px
 # from wordcloud import WordCloud
 
 # Read in the spreadsheet and count the number of drawings.
@@ -154,7 +156,9 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
       G.nodes.data()[element]['edgecolor']=G.nodes.data()[element]['color']
       G.nodes.data()[element]['linewidth']=1.0
       G.nodes.data()[element]['weight']=df['Frequency'][j]
+      ### New code.
       G.nodes.data()[element]['percent weight']=df['Frequency'][j]/len(drawings_in)
+      ### End new code.
       G.nodes.data()[element]['category']=category
   G.edge_scale = edge_scale
   G.node_scale = node_scale
@@ -164,6 +168,8 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
   pos = nx.spring_layout(G)
   edges = G.edges()
   nodes = G.nodes()
+  for node in G.nodes:
+    G.nodes[node]['pos'] = pos[node]
   # Set properties of nodes and edges.
   weights = [G[u][v]['weight']/G.edge_scale for u,v in edges] # Size of edges.
 #   print(nodes.data())
@@ -250,7 +256,10 @@ def MakeBootstrapGraph(G,cap_edge_weight=False):
 
   return G_bootstrap
 
-def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=None,font_size=12):
+def NodeSize(weight,max_weight):
+    return (weight/max_weight)**0.2*25
+
+def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=None,font_size=12,title='',export=False):
   # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
   # Comment out this line to keep the same arrangement but change cosmetics.
   if pos == None:
@@ -261,22 +270,115 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=No
       if key in G.nodes:
         new_pos[key] = value
     pos = new_pos
-  edges = G.edges()
-  nodes = G.nodes()
-  # Set properties of nodes and edges.
-  weights = [G[u][v]['weight']/G.edge_scale*edge_size_control for u,v in edges] # Size of edges.
-  ncolors = [G.nodes.data()[u]['color'] for u in nodes] # Color of nodes.
-  ecolors = [G.nodes.data()[u]['edgecolor'] for u in nodes] # Colors of node borders.
-  lwidths = [G.nodes.data()[u]['linewidth'] for u in nodes] # Width of node borders.
-  sizes = [G.nodes.data()[u]['weight']*G.node_scale*node_size_control for u in nodes] # Size of nodes.
+    
+  ### Switching to plotly.
 
-  # The draw command.
-  plt.figure(figsize=figsize)
-  nx.draw(G, pos, with_labels=False, labels=G.labeldict, font_size=font_size, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
-  # Add a legend for the color-coding.
-  plt.text(0.5, 0.95, 'Practice',color='r',fontsize=font_size)
-  plt.text(0.5, 0.87, 'Member',color='g',fontsize=font_size)
-  plt.text(0.5, 0.80, 'Goal',color='b',fontsize=font_size)
+  edge_x = []
+  edge_y = []
+  edge_width = []
+  for edge in G.edges():
+    x0, y0 = G.nodes[edge[0]]['pos']
+    x1, y1 = G.nodes[edge[1]]['pos']
+    edge_x.append(x0)
+    edge_x.append(x1)
+    edge_x.append(None)
+    edge_y.append(y0)
+    edge_y.append(y1)
+    edge_y.append(None)
+    edge_width.append((G.edges[edge]['weight']/G.edge_scale)**0.5*0.5)
+    
+  goal_node_x    = []
+  goal_node_y    = []
+  goal_sizes     = []
+  goal_node_text = []
+  member_node_x    = []
+  member_node_y    = []
+  member_sizes     = []
+  member_node_text = []
+  practice_node_x    = []
+  practice_node_y    = []
+  practice_sizes     = []
+  practice_node_text = []
+    
+  for node in G.nodes():
+    x,y = G.nodes[node]['pos']
+    if G.nodes[node]['category'] == 'Goal':
+      goal_node_x.append(x)
+      goal_node_y.append(y)
+      goal_sizes.append(NodeSize(G.nodes[node]['weight'],G.edge_scale))
+      goal_node_text.append(node+' (Goal) <br>weight='+str(G.nodes[node]['weight'])+'<br>w degree='+str(G.degree(weight='weight')[node]))
+    if G.nodes[node]['category'] == 'Member':
+      member_node_x.append(x)
+      member_node_y.append(y)
+      member_sizes.append(NodeSize(G.nodes[node]['weight'],G.edge_scale))
+      member_node_text.append(node+' (Member) <br>weight='+str(G.nodes[node]['weight'])+'<br>w degree='+str(G.degree(weight='weight')[node]))
+    if G.nodes[node]['category'] == 'Practice':
+      practice_node_x.append(x)
+      practice_node_y.append(y)
+      practice_sizes.append(NodeSize(G.nodes[node]['weight'],G.edge_scale))
+      practice_node_text.append(node+' (Practice) <br>weight='+str(G.nodes[node]['weight'])+'<br>w degree='+str(G.degree(weight='weight')[node]))
+        
+  goal_node_trace = go.Scatter(
+      x=goal_node_x, y=goal_node_y,
+      mode='markers',
+      hoverinfo='text',
+      marker=dict(
+          showscale=False, reversescale=True, color='#0000FF', size=goal_sizes, line_width=1), text=goal_node_text)
+
+  member_node_trace = go.Scatter(
+      x=member_node_x, y=member_node_y,
+      mode='markers',
+      hoverinfo='text',
+      marker=dict(
+          showscale=False, reversescale=True, color='#008000', size=member_sizes, line_width=1), text=member_node_text)
+  
+  practice_node_trace = go.Scatter(
+      x=practice_node_x, y=practice_node_y,
+      mode='markers',
+      hoverinfo='text',
+      marker=dict(
+          showscale=False, reversescale=True, color='#FF0000', size=practice_sizes, line_width=1), text=practice_node_text)
+  
+  fig = go.Figure(data=[], layout=go.Layout(title=dict(text="<br>Network graph of "+title,font=dict(size=16)),
+                                            showlegend=True,hovermode='closest',margin=dict(b=20,l=5,r=5,t=40),
+                                            xaxis=dict(showgrid=False,zeroline=False,showticklabels=False),
+                                            yaxis=dict(showgrid=False,zeroline=False,showticklabels=False)))
+  for edge in G.edges():
+    x0,y0 = G.nodes[edge[0]]['pos']
+    x1,y1 = G.nodes[edge[1]]['pos']
+    fig.add_trace(go.Scatter(x=[x0,x1],y=[y0,y1],line=dict(width=G.edges[edge]['weight']/10, color='#888'),
+                             hoverinfo='none',showlegend=False,mode='lines'))
+  fig.add_trace(go.Scatter(goal_node_trace,    name='Goal',    fillcolor='#0000FF',showlegend=True))
+  fig.add_trace(go.Scatter(member_node_trace,  name='Member',  fillcolor='#008000',showlegend=True))
+  fig.add_trace(go.Scatter(practice_node_trace,name='Practice',fillcolor='#FF0000',showlegend=True))
+
+  fig.update_layout(legend=go.layout.Legend(itemsizing='constant'))
+    
+  fig.show()
+  if export: fig.write_image(text+'.png')
+  return
+
+  ### Done switching to plotly.
+    
+
+  ### Preserve networkx graphing.
+#   edges = G.edges()
+#   nodes = G.nodes()
+#   # Set properties of nodes and edges.
+#   weights = [G[u][v]['weight']/G.edge_scale*edge_size_control for u,v in edges] # Size of edges.
+#   ncolors = [G.nodes.data()[u]['color'] for u in nodes] # Color of nodes.
+#   ecolors = [G.nodes.data()[u]['edgecolor'] for u in nodes] # Colors of node borders.
+#   lwidths = [G.nodes.data()[u]['linewidth'] for u in nodes] # Width of node borders.
+#   sizes = [G.nodes.data()[u]['weight']*G.node_scale*node_size_control for u in nodes] # Size of nodes.
+
+#   # The draw command.
+#   plt.figure(figsize=figsize)
+#   nx.draw(G, pos, with_labels=False, labels=G.labeldict, font_size=font_size, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
+#   # Add a legend for the color-coding.
+#   plt.text(0.5, 0.95, 'Practice',color='r',fontsize=font_size)
+#   plt.text(0.5, 0.87, 'Member',color='g',fontsize=font_size)
+#   plt.text(0.5, 0.80, 'Goal',color='b',fontsize=font_size)
+  ### End networkx graphing.
 
   return pos
 
