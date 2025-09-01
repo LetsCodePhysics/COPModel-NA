@@ -355,7 +355,9 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=No
   fig.update_layout(legend=go.layout.Legend(itemsizing='constant'))
     
   fig.show()
-  if export: fig.write_image(text+'.png')
+  if export: 
+        fig.write_image(title+'.png')
+        fig.write_html(title+'.html')
   return
 
   ### Done switching to plotly.
