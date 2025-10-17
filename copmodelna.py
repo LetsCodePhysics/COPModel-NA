@@ -277,7 +277,7 @@ def FindHeaviestTriangles(G, min_edge_weight, min_triangle_weight):
             if edge[0] not in nodes: nodes.append(edge[0])
             if edge[1] not in nodes: nodes.append(edge[1])
             weight = triangle[3] / G.n_drawings
-        if weight > t_min_weight: print(weight,'|',nodes[0],'|',nodes[1],'|',nodes[2])
+        if weight > min_triangle_weight: print(weight,'|',nodes[0],'|',nodes[1],'|',nodes[2])
 
     return heaviest_triangles
 
