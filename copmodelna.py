@@ -526,15 +526,15 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,fig_width=500,fig_h
   # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
   # Comment out this line to keep the same arrangement but change cosmetics.
   if pos == None:
-    print('pos is',pos)
+    # print('pos is',pos)
     if layout=='spring' or layout=='spring_layout':
-      print('going spring')
+      # print('going spring')
       pos = nx.spring_layout(G)
     elif layout=='kamada_kawai' or layout=='kk' or layout=='kamada_kawai_layout':
-      print('going kamada_kawai')
+      # print('going kamada_kawai')
       pos = nx.kamada_kawai(G)
     elif layout=='circular' or layout=='circular_layout':
-      print('going circular')
+      # print('going circular')
       pos = nx.circular_layout(G)
     else:
       print('Please provide a layout or pos argument. See def DrawGraph in copymodelna.py.')
