@@ -211,6 +211,269 @@ def MakeGraph(drawings_in,full_database,node_selection='min_weight',min_node_wei
   # plt.text(0.5, 0.80, 'Goal',color='b')
   return G
 
+def FindHeaviestTriangles(G, min_edge_weight, min_triangle_weight):
+    # Find all triangles in G whose edges all have a minimum weight min_edge_weight and who have a minimum average weight min_triangle_weight.
+    # Weights are evaluated as a fraction of G.n_drawings
+  
+    # Sort the edges in G with a minimum weight min_edge_weight.
+
+    # print(f"Nodes: {G.number_of_nodes()}, Edges: {G.number_of_edges()}")
+
+    # find edges
+    edges_not_sorted = []
+    for u, v, data in G.edges(data=True):
+        a, b = sorted((u, v))
+        w = float(data.get('weight'))
+        edges_not_sorted.append((a, b, w))
+
+    # sort by descending weight
+    edges_sorted = sorted(edges_not_sorted, key=lambda t: t[2], reverse=True)
+
+    # print highest ranking edge weights
+    top_edges = []
+    done = False
+    n=0
+    
+    while not done:
+        a, b, w = edges_sorted[n]
+        if w/G.n_drawings >= min_edge_weight:
+            top_edges.append(edges_sorted[n])
+        else:
+            done = True
+        n += 1
+    
+    print(f"\nTOP {len(top_edges)} edges by weight:")
+    for rank, (a, b, w) in enumerate(top_edges, start=1):
+        print(f"#{rank:>3} | ({a}, {b})  weight={w}")
+
+    heaviest_triangles = []
+    for i in range(len(top_edges)):
+        for j in range(i+1, len(top_edges)):
+            node_in_common = False
+            for ii in [0,1]:
+                for jj in [0,1]:
+                    # print(top_edges[i][ii],top_edges[j][jj])
+                    if top_edges[i][ii] == top_edges[j][jj]: node_in_common = True
+            if node_in_common:
+                for k in range(j+1, len(top_edges)):
+                    nodes_in_common = []
+                    for ii in [0,1]:
+                        for jj in [0,1]:
+                            for kk in [0,1]:
+                                if (top_edges[i][ii] == top_edges[j][jj] and top_edges[i][ii] != top_edges[k][kk] and top_edges[i][ii] not in nodes_in_common):
+                                    nodes_in_common.append(top_edges[i][ii])
+                                if (top_edges[i][ii] == top_edges[k][kk] and top_edges[i][ii] != top_edges[j][jj] and top_edges[i][ii] not in nodes_in_common):
+                                    nodes_in_common.append(top_edges[i][ii])
+                                if (top_edges[j][jj] == top_edges[k][kk] and top_edges[i][ii] != top_edges[j][jj] and top_edges[j][jj] not in nodes_in_common):
+                                    nodes_in_common.append(top_edges[j][jj])
+                    this_is_a_triangle = len(nodes_in_common) == 3 and nodes_in_common[0] != nodes_in_common[1] and nodes_in_common[0] != nodes_in_common[2] and nodes_in_common[1] != nodes_in_common[2]
+                    # print(this_is_a_triangle,nodes_in_common,top_edges[i],top_edges[j],top_edges[k])
+                    if this_is_a_triangle:
+                        weight = triangle_weight((top_edges[i], top_edges[j], top_edges[k]))
+                        heaviest_triangles.append((top_edges[i], top_edges[j], top_edges[k], weight))
+    for triangle in heaviest_triangles:
+        nodes = []
+        for edge in triangle[0:3]:
+            if edge[0] not in nodes: nodes.append(edge[0])
+            if edge[1] not in nodes: nodes.append(edge[1])
+            weight = triangle[3] / G.n_drawings
+        if weight > t_min_weight: print(weight,'|',nodes[0],'|',nodes[1],'|',nodes[2])
+
+    return heaviest_triangles
+
+def triangle_weight(t, p = 1):
+    # Calculate the average edge weight of triangle t.
+    # t = a tuple with edges a, b, and c, each of which has its weight stored in item [2]
+    a, b, c = t
+    weight = (1/3 * (a[2]**p+b[2]**p+c[2]**p))**(1/p)
+    return weight
+
+def MakeGraphOfTriangles(drawings_in,full_database,min_node_weight=1,triangles=[],N_random=None):
+  # Create a graph of just the triangles listed in triangles = [(edge12,edge23,edge31,weight),(edge12,edge23,edge31,weight),...]
+  # triangles comes from FindHeaviestTriangles
+  # INPUTS:
+  # drawings = ['Drawing 1', 'Drawing 3', etc. indicating drawings to include in the network]
+  # full_database = the full set of data read in from Google Sheets
+  # node_selection can equal
+     # 'min_weight' - The graph will include only nodes of weight >= min_node_weight
+     # 'nodes_list' - The graph will include only nodes in the list nodes_in
+  # OUTPUTS:
+  # function returns the graph (network) G based on the included drawings
+  # function also creates network diagram color-coded by category
+
+  # Set up empty dataframe.
+  df = pd.DataFrame()
+
+  # Create the list of nodes_in.
+  nodes_in = []
+  edges_in = []
+  for tri in triangles:
+    for edge in tri[0:3]:
+      if edge not in edges_in: edges_in.append((edge[0],edge[1]))
+      for node in edge[0:2]:
+        if node not in nodes_in: nodes_in.append(node)
+
+  # Set up columns of elements and categories.
+  df['Element'] = full_database['Element']
+  df['Category'] = full_database['Category']
+
+  # Set up frequency column. We'll calculate it in the next cell.
+  df['Frequency'] = np.zeros(len(df['Element']), dtype=int)
+
+  # Set up element number column. This is to serve as a label.
+  df['Element Number'] = np.zeros(len(df['Element']), dtype=int)
+  df['Element Key'] = np.empty(len(df['Element']), dtype=str)
+
+  # Set up the coincidence table for elements.
+  # In this table, c_ij = number of drawings elements i and j occur in together.
+  # Also count number of Demographic items to help offset loops later.
+  n_Demographics = 0
+  n_Elements = 0
+  AddKeyNumber = False
+
+  # Create coincidence table of zeros.
+  for j in range(len(full_database['Element'])):
+    category = full_database['Category'][j]
+    element  = full_database['Element'][j]
+    if category != 'Demographic':
+      df[element] = np.zeros(len(full_database['Element']))
+      n_Elements += 1
+      df.loc[j,'Element Number'] = n_Elements
+      if AddKeyNumber:
+        df.loc[j,'Element Key'] = str(n_Elements) + element
+      else:
+        df.loc[j,'Element Key'] = element
+    else:
+      n_Demographics += 1
+      df.loc[j,'Element Key'] = ''
+  
+  drawings_to_use = []
+  if (N_random != None):
+    # Choose N drawings randomly.
+    drawings_to_use = np.random.choice(drawings_in,N_random)
+  else:
+    drawings_to_use = drawings_in
+  # Create coincidence table from the dataset.
+  # Count the frequency and coincidences of elements.
+  for i in range(n_Demographics,len(df['Element'])):
+    frequency = 0
+    for sn in drawings_to_use:
+      frequency += full_database[sn][i]=='y'
+    # print(df['Frequency'][i], frequency,len(df['Frequency']),i)
+    df.loc[i,'Frequency'] = frequency
+    for j in range(i+1,len(df['Element'])):
+      count = 0
+      for sn in drawings_to_use:
+        count += full_database[sn][i]=='y' and full_database[sn][j]=='y'
+      df.loc[j,df['Element'][i]] = count
+  
+  # Create the graph.
+  G = nx.Graph()
+  G.clear()
+  
+  # Identify maximum frequency, for scaling the diagram.
+  max_frequency = max(df['Frequency'][1:len(df['Frequency'])])
+  # Pull off the non-zero frequency values to determine the minimum frequency,
+  # for scaling the diagram.
+  NonZeroFrequencies = []
+#   for a in df['Frequency'][1:len(df['Frequency'])]:
+#     if a >= min_node_weight: NonZeroFrequencies.append(a)
+  for i in range(1,len(df['Frequency'])):
+    if df['Element'][i] in nodes_in and df['Frequency'][i]>0: NonZeroFrequencies.append(df['Frequency'][i])
+  min_frequency = min(NonZeroFrequencies)
+  # Create node size scale and edge size scale.
+  node_scale = max_frequency/min_frequency
+  edge_scale = 0
+  
+  # Create the edges. This automatically creates the nodes.
+  for i in range(n_Demographics,len(df['Element'])):
+    if df['Frequency'][i] >= min_node_weight or df['Element'][i] in nodes_in:
+      ei = df['Element'][i]
+      for j in range(i+1,len(df['Element'])):
+        if df['Frequency'][j] >= min_node_weight or df['Element'][j] in nodes_in:
+          ej = df['Element'][j]
+          if not math.isnan(df[ei][j]) and df[ei][j] > 0 and df['Category'][j] != 'Demographic' and ((ei,ej) in edges_in or (ej,ei) in edges_in):
+            G.add_edge(ei,ej,weight=df[ei][j],color='b')
+            edge_scale = max(edge_scale,df[ei][j])
+  for node in nodes_in:
+    if node not in G:
+      G.add_node(node)
+  # Color-code nodes based on category.
+  for j in range(n_Demographics,len(df['Element'])):
+    category = df['Category'][j]
+    element  = df['Element'][j]
+    # Ignore Demographic rows.
+    ThisIsAnElement = ((category == 'Practice') or (category == 'Goal') or (category == 'Member'))
+    if ThisIsAnElement:
+      # Ignore elements with insignificant frequency. For example, if you are using a disaggregated subgroup
+      # and none of them included a given element.
+      ThisIsAnElement = df['Frequency'][j] >= min_node_weight or df['Element'][j] in nodes_in
+    if ThisIsAnElement and element in G.nodes():
+      if category == 'Practice':
+        G.nodes.data()[element]['color']='r'
+      elif category == 'Goal':
+        G.nodes.data()[element]['color']='b'
+      elif category == 'Member':
+        G.nodes.data()[element]['color']='g'
+      # Set default node border.
+      G.nodes.data()[element]['edgecolor']=G.nodes.data()[element]['color']
+      G.nodes.data()[element]['linewidth']=1.0
+      G.nodes.data()[element]['weight']=df['Frequency'][j]
+      ### New code.
+      G.nodes.data()[element]['percent weight']=df['Frequency'][j]/len(drawings_in)
+      ### End new code.
+      G.nodes.data()[element]['category']=category
+  G.edge_scale = edge_scale
+  G.node_scale = node_scale
+  G.n_Demographics = n_Demographics
+  # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
+  # Comment out this line to keep the same arrangement but change cosmetics.
+  pos = nx.spring_layout(G)
+  edges = G.edges()
+  nodes = G.nodes()
+  for node in G.nodes:
+    G.nodes[node]['pos'] = pos[node]
+  # Set properties of nodes and edges.
+  weights = [G[u][v]['weight']/G.edge_scale for u,v in edges] # Size of edges.
+#   print(nodes.data())
+  ncolors = [G.nodes.data()[u]['color'] for u in nodes] # Color of nodes.
+  ecolors = [G.nodes.data()[u]['edgecolor'] for u in nodes] # Colors of node borders.
+  lwidths = [G.nodes.data()[u]['linewidth'] for u in nodes] # Width of node borders.
+  sizes = [G.nodes.data()[u]['weight']*G.node_scale*0.75 for u in nodes] # Size of nodes.
+  labeldict = {}
+  for j in range(n_Demographics,len(full_database['Element'])):
+    # Ignore elements with 0 frequency.
+    if df['Frequency'][j] >= min_node_weight or df['Element'][j] in nodes_in:
+      labeldict[df['Element'][j]] = str(df['Element Number'][j])
+  inv_factor = len(nodes) * 100
+  for u,v in edges: # Inverse weight of edges, for centrality distance.
+    G[u][v]['weight_inverse'] = int(inv_factor/G[u][v]['weight']) # Convert to int to appease betweenness.
+
+  G.labeldict = labeldict
+  G.n_drawings = len(drawings_in)
+  G.elements_per_drawing = len(G.nodes) / len(drawings_in)
+  G.betweenness = nx.betweenness_centrality(G, weight = 'weight_inverse')
+  G.closeness = nx.closeness_centrality(G, distance = 'weight_inverse')
+  G.nodestrength = dict(G.degree(weight='weight')) 
+  G.normnodestrength = {}
+  for key,value in G.nodestrength.items():
+    G.normnodestrength[key] = value / ((len(G.nodes)-1)*len(drawings_in))
+  G.nodedegree = dict(G.degree)
+  G.normnodedegree = {}
+  for key,value in G.nodedegree.items():
+    G.normnodedegree[key] = value / (len(G.nodes)-1)
+  G.nodeweight = {}
+  for node in G.nodes:
+    G.nodeweight[node] = G.nodes.data()[node]['weight']
+
+  # The draw command.
+  # nx.draw(G, pos, with_labels=AddKeyNumber, labels=labeldict, font_size=10, node_color=ncolors, node_size=sizes, linewidths=lwidths, width=weights, edgecolors = ecolors, cmap = 'viridis')
+  # Add a legend for the color-coding.
+  # plt.text(0.5, 0.95, 'Practice',color='r')
+  # plt.text(0.5, 0.87, 'Member',color='g')
+  # plt.text(0.5, 0.80, 'Goal',color='b')
+  return G
+
 def MakeBootstrapGraph(G,cap_edge_weight=False):
   # Make a bootstrap graph of G by reassigning edge values using a Poisson distribution.
 #   G_bootstrap = G
@@ -259,11 +522,23 @@ def MakeBootstrapGraph(G,cap_edge_weight=False):
 def NodeSize(weight,max_weight):
     return (weight/max_weight)**0.2*25
 
-def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=None,font_size=12,title='',export=False):
+def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,fig_width=500,fig_height=500,pos=None,font_size=12,title='',export=False,layout='spring'):
   # Create the network diagram. Note that repeating the pos = line will rearrange the nodes.
   # Comment out this line to keep the same arrangement but change cosmetics.
   if pos == None:
-    pos = nx.spring_layout(G)
+    print('pos is',pos)
+    if layout=='spring' or layout=='spring_layout':
+      print('going spring')
+      pos = nx.spring_layout(G)
+    elif layout=='kamada_kawai' or layout=='kk' or layout=='kamada_kawai_layout':
+      print('going kamada_kawai')
+      pos = nx.kamada_kawai(G)
+    elif layout=='circular' or layout=='circular_layout':
+      print('going circular')
+      pos = nx.circular_layout(G)
+    else:
+      print('Please provide a layout or pos argument. See def DrawGraph in copymodelna.py.')
+      return
   else:
     new_pos = {}
     for key,value in pos.items():
@@ -301,7 +576,8 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=No
   practice_node_text = []
     
   for node in G.nodes():
-    x,y = G.nodes[node]['pos']
+    x = pos[node][0]
+    y = pos[node][1]
     if G.nodes[node]['category'] == 'Goal':
       goal_node_x.append(x)
       goal_node_y.append(y)
@@ -344,21 +620,23 @@ def DrawGraph(G,node_size_control=0.75,edge_size_control=1.0,figsize=None,pos=No
                                             xaxis=dict(showgrid=False,zeroline=False,showticklabels=False),
                                             yaxis=dict(showgrid=False,zeroline=False,showticklabels=False)))
   for edge in G.edges():
-    x0,y0 = G.nodes[edge[0]]['pos']
-    x1,y1 = G.nodes[edge[1]]['pos']
+    x0 = pos[edge[0]][0]
+    y0 = pos[edge[0]][1]
+    x1 = pos[edge[1]][0]
+    y1 = pos[edge[1]][1]
     fig.add_trace(go.Scatter(x=[x0,x1],y=[y0,y1],line=dict(width=G.edges[edge]['weight']/10, color='#888'),
                              hoverinfo='none',showlegend=False,mode='lines'))
   fig.add_trace(go.Scatter(goal_node_trace,    name='Goal',    fillcolor='#0000FF',showlegend=True))
   fig.add_trace(go.Scatter(member_node_trace,  name='Member',  fillcolor='#008000',showlegend=True))
   fig.add_trace(go.Scatter(practice_node_trace,name='Practice',fillcolor='#FF0000',showlegend=True))
 
-  fig.update_layout(legend=go.layout.Legend(itemsizing='constant'))
+  fig.update_layout(legend=go.layout.Legend(itemsizing='constant'),width=fig_width, height=fig_height)
     
   fig.show()
   if export: 
         fig.write_image(title+'.png')
         fig.write_html(title+'.html')
-  return
+  # return
 
   ### Done switching to plotly.
     
